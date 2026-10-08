@@ -2,10 +2,16 @@
 
 ## 主线：任意消息级回滚（对齐 Kilo Code 体验）
 
-### Phase 1 —— 任意消息对话回滚（纯加法）✅ 完成（e2e 通过）
+### Phase 1 —— 任意消息对话回滚（纯加法）✅ 完成（e2e + GUI 视觉验收通过）
 
 无头 e2e：`node scripts/e2e-rewind.mjs <工作区绝对路径>`（直连 app-server stdio 走 v4 协议，
 覆盖 createSession/sendText/rewind/续跑全链路）。
+
+GUI 视觉验收（dev 桌面 + computer-use 实点，2026-10-09）：
+- 历史行渲染"回滚到此/回滚对话和文件"且无"编辑"（latest-only 语义未破坏）
+- 撤销 → 横幅"已还原 N 条消息"+文件状态+窗口提示+原提问（含附件）回填输入框
+- 重做 → 横幅消失、全部消息回归；此前一次"重做无效"系半崩溃 dev 编排留下的
+  旧 agent 进程所致（干净重启后消失），代码本身无缺陷
 
 目标：GUI 任意 user 消息行 hover 出现"回滚到此消息"按钮，点击后该消息之后的所有
 对话被截断（branch cut 软删除，可冷恢复），工作区文件保持不变（`workspaceMode=preserve`）。

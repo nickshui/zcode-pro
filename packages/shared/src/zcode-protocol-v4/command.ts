@@ -173,6 +173,9 @@ export const commandPayloadSchemas = {
     workspaceMode: z.enum(["preserve", "rewind"]).optional(),
   }),
   // zcode-pro: end
+  // zcode-pro: message-rewind Phase 3 —— redo：撤销最近一次 rewindConversation，
+  // 恢复其全部效果（截断的消息分支 + 撤销时的文件回滚）。新 prompt 后 CLI 侧拒绝。
+  unrewindConversation: z.object({}),
   setAssistantFeedback: z.object({
     target: conversationRowTargetSchema,
     feedback: z.enum(["like", "dislike"]).nullable(),
@@ -314,6 +317,8 @@ export const COMMANDS_REQUIRING_BASE_REVISION: ReadonlySet<CommandType> = new Se
   "retryTurn",
   // zcode-pro: message-rewind —— CAS 同档命令，防并发窗口误截断。
   "rewindConversation",
+  // zcode-pro: message-rewind Phase 3
+  "unrewindConversation",
   "setAssistantFeedback",
   "sendQueuedNow",
   "editQueueItem",
@@ -410,6 +415,12 @@ export const commandResultSchema = z.discriminatedUnion("type", [
     applied: z.boolean(),
     preview: v4ConversationFileRewindPreviewResultSchema,
     response: z.string(),
+  }),
+  z.object({
+    // zcode-pro: message-rewind Phase 3 —— redo ACK：恢复的消息数与文件数供横幅展示。
+    type: z.literal("unrewindConversation"),
+    restoredMessageCount: z.number().int().nonnegative(),
+    filesRestored: z.number().int().nonnegative(),
   }),
   z.object({
     type: z.literal("editUserQuery"),

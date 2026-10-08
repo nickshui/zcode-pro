@@ -13,6 +13,8 @@ import { selectionSideSessionHandlers } from "./selection-side-session.js";
 import { assistantFeedbackHandlers } from "./assistant-feedback.js";
 // zcode-pro: message-rewind
 import { rewindConversationHandlers } from "./rewind-conversation.js";
+// zcode-pro: message-rewind Phase 3
+import { unrewindConversationHandlers } from "./unrewind-conversation.js";
 
 export const NATIVE_HANDLERS = {
   ...sessionFlowHandlers,
@@ -27,4 +29,5 @@ export const NATIVE_HANDLERS = {
   ...assistantFeedbackHandlers,
   // zcode-pro: message-rewind
   ...rewindConversationHandlers,
+  ...unrewindConversationHandlers,
 } as const;

@@ -66,6 +66,8 @@ import { applySubmissionExecutionState, createTurnModel } from "./turn-model.js"
 import { rebuildContextPrefix } from "./context-refresh.js";
 // zcode-pro: message-rewind Phase 2
 import { captureTurnStartWorkspaceSnapshot } from "./turn-workspace-snapshot.js";
+// zcode-pro: message-rewind Phase 3 —— 新 prompt 作废 redo 窗口（Kilo 语义）
+import { clearRewindUndoJournal } from "./rewind-revert.js";
 
 const TARGET_RUN_HEARTBEAT_MS = 15_000;
 
@@ -536,6 +538,7 @@ export async function executeTurnCommand(
             messageId: userMessageId,
             traceContext: turnTraceContext,
           });
+          await clearRewindUndoJournal.call(this);
           // zcode-pro: end
           // 标题生成以前等主 turn 成功后才启动，用户 stop/cancel 首轮请求时
           // generated title 永远没有机会发起。首条 query 持久化后即可异步生成，避免被主链路取消拖死。

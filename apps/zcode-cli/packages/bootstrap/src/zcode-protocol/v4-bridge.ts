@@ -974,6 +974,10 @@ export function createConversationV4Gateway(
       context.v4Gateway?.getMessageIdForRow(sessionId, rowId) ?? null,
     resolveRowActionTarget: (sessionId, target, action) =>
       context.v4Gateway?.resolveRowActionTarget(sessionId, target, action) ?? null,
+    // zcode-pro: message-rewind Phase 3
+    forceConversationProjectionRehydrate: async (sessionId) => {
+      await context.v4Gateway?.forceConversationProjectionRehydrate(sessionId);
+    },
     getMessageIdsForTurnRow: (sessionId, rowId) =>
       context.v4Gateway?.getMessageIdsForTurnRow(sessionId, rowId) ?? [],
     isLatestAssistantSegmentRow: (sessionId, rowId) =>

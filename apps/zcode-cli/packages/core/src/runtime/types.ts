@@ -626,6 +626,35 @@ export interface TurnWorkspaceSnapshotRestoreResult {
   files?: number;
 }
 
+// zcode-pro: message-rewind Phase 3 —— rewind 撤销点（redo 所需的全部事实）。
+export interface RewindUndoPoint {
+  /** rewind 提交前的 active 分支消息数（redo 横幅"已还原 N 条消息"的 N 的来源之一）。 */
+  preActiveMessageCount: number;
+  /** rewind 提交前的 branchGeneration（commit 时推算 post = pre + 1；redo 用作 stale 校验）。 */
+  preRewindBranchGeneration: number;
+  /** rewind 提交前 store 的完整 revert 状态；null = 从未 rewind 过。 */
+  previousRevert: unknown;
+  /** rewind 提交前的工作区整树 hash（非 git 工作区为 null）。 */
+  preRewindTreeHash: string | null;
+}
+
+// zcode-pro: message-rewind Phase 3 —— redo（撤销 rewind）的结果。
+export interface ConversationRewindRestoreResult {
+  restored: boolean;
+  reason?:
+    | "no_undo_entry"
+    | "stale_undo_entry"
+    | "no_session_store"
+    | "git_failed";
+  message?: string;
+  /** 本次 redo 恢复回来的消息数（该次 rewind 截掉的数量）。 */
+  restoredMessageCount?: number;
+  /** 文件侧恢复涉及的文件数（撤销未动文件时为 undefined）。 */
+  filesRestored?: number;
+  /** 被撤销的那次 rewind 的目标消息。 */
+  targetMessageId?: MessageId;
+}
+
 export interface WorkspaceForkResult {
   checkpoint?: CheckpointCreatedPayload;
   copiedMessageCount: number;

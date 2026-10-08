@@ -40,12 +40,21 @@ core 内的 checkpoint 后端，在工具批次边界做全仓快照，与现有
 单进程内"停后台任务 → 恢复文件 → 提交 branch cut"的原子序），且桌面只能从
 投影帧反推 turn 边界，存在部分写入竞态。详见设计文档。
 
-### Phase 3 —— 两阶段回滚 + redo（借鉴 Kilo）
+### Phase 3 —— 撤销/重做闭环 ✅ 完成（e2e：redo 恢复 3 消息 + 2 文件变更）
 
-- revert 时**先拍当前快照再回滚**，redo（unrevert）整树还原
-- 对话截断惰性化：先标记隐藏、下一条 prompt 时才真正清理（ZCode 的 branch cut
-  软删除天然适配）
-- 回滚 banner：展示被撤销的文件 +/- 统计（解析 diff）
+实现（对齐 Kilo /undo /redo 语义）：
+- **undo 日志**（durable sidecar，`~/.zcode/cli/snapshots/<ws>/undo-journal/`）：
+  每次 rewindConversation 前采集撤销点——当时的 revert 状态、工作区整树 hash、
+  active 消息数；新 prompt 开始即作废（Kilo 同款窗口语义）
+- **redo（unrewindConversation 命令）**：恢复撤销点 = setRevert/clearRevert 回滚
+  分支状态（消息 append-only，前缀恢复即整分支回归）→ 撤销时动过文件则整树恢复
+  到 pre-undo 快照 → 落 `RewindReverted` 事件 → 强制投影 rehydrate
+- **投影回归**：冷合并抑制被撤销的 RewindTriggered（视为从未发生），durable
+  transcript 按恢复后的 revert 状态重建完整分支；publisher.rehydrate 把现有订阅
+  标记 resync，客户端收到全新快照——被截断的消息行（含工具/子 agent 行）全部回归
+- **UI**：撤销后横幅（"已还原 N 条消息" + 文件状态 + 重做按钮 + 窗口提示），
+  被撤销的原提问回填输入框（"打回最初发送状态"）
+- e2e 断言：redo 后 DONE2 回归 + notes.txt 恢复 pre-undo 状态 + 新消息后 redo 被拒
 
 ### Phase 4 —— 回流上游（可选）
 

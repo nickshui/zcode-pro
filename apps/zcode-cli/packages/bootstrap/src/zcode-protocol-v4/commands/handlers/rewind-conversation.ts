@@ -61,6 +61,16 @@ async function rewindConversation(
       goalPausedMutationReason: "rewind_conversation_goal_paused",
     });
   }
+  // zcode-pro: Phase 3 —— 撤销点必须在任何副作用（文件恢复/分支切割）之前采集。
+  let undoPoint: Awaited<ReturnType<typeof record.app.runtime.captureRewindUndoPoint>> = null;
+  try {
+    undoPoint = await record.app.runtime.captureRewindUndoPoint();
+  } catch (error) {
+    host.logger?.warn?.("rewind undo point capture failed", {
+      message: error instanceof Error ? error.message : String(error),
+    });
+  }
+  let filesRestored = false;
   // zcode-pro: Phase 2 —— rewind 模式先整树恢复工作区（覆盖 bash 等一切副作用），
   // 恢复成功才提交 conversation branch cut（与 editUserQuery 的"文件先行"失败语义一致）。
   if ((payload.workspaceMode ?? "preserve") === "rewind") {
@@ -71,6 +81,7 @@ async function rewindConversation(
     if (!restore.restored) {
       throw new V4RewindWorkspaceRestoreError(restore.reason ?? "git_failed", restore.message);
     }
+    filesRestored = true;
   }
   const result = await record.app.runtime.rewindConversationToMessage({
     events: [],
@@ -79,6 +90,22 @@ async function rewindConversation(
   });
   if (result.strategy !== RewindStrategy.ActiveChain) {
     throw new Error(`conversation rewind unavailable for ${targetMessageId}: ${result.strategy}`);
+  }
+  // zcode-pro: Phase 3 —— 落盘撤销点（失败只降级 redo，不影响本次 rewind）。
+  if (undoPoint) {
+    try {
+      await record.app.runtime.commitRewindUndoPoint({
+        filesRestored,
+        point: undoPoint,
+        postRewindActiveMessageCount: result.keptMessageCount,
+        revertedRewindId: result.rewindId,
+        targetMessageId: targetMessageId as MessageId,
+      });
+    } catch (error) {
+      host.logger?.warn?.("rewind undo point commit failed", {
+        message: error instanceof Error ? error.message : String(error),
+      });
+    }
   }
   // 与 editUserQuery 相同的过渡钩子：legacy 侧栏消费者感知；v4 投影走
   // RewindTriggered → row.removed 自收口。

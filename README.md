@@ -50,7 +50,7 @@ pnpm --dir packages/desktop dev:runtime
 | --- | --- | --- |
 | Phase 1 | 任意消息**对话回滚**（`rewindConversation` 命令 + 行级 `canRewind` + UI 按钮） | ✅ 完成并通过无头 e2e（`scripts/e2e-rewind.mjs`） |
 | Phase 2 | agent 侧 shadow git 全仓快照，覆盖 bash 等一切文件副作用（UI 第二按钮"回滚对话和文件"） | ✅ 完成并通过 e2e（bash 追加被整树回滚） |
-| Phase 3 | 两阶段回滚 + redo（借鉴 Kilo revert/unrevert 设计） | 设计中 |
+| Phase 3 | 撤销/重做闭环：撤销后横幅 + 重做（redo = 撤销从未发生，含文件）+ 原提问回填输入框 | ✅ 完成并通过 e2e（redo 恢复 3 消息 + 2 文件变更） |
 
 技术设计文档：[docs/design/message-rewind.md](docs/design/message-rewind.md)
 

@@ -1,4 +1,6 @@
-// zcode-pro: message-rewind Phase 2 —— turn 起点 shadow git 全量快照（docs/design/message-rewind.md）
+// zcode-pro: message-rewind Phase 2 —— turn 起点全量快照（shadow git）。
+/* oxlint-disable eslint(max-lines) -- 快照捕获/整树恢复/树 diff 应用是同一影子仓关注点，
+   拆文件会散落 GIT_INDEX_FILE 约定与路径安全防御；对齐上游 ConversationRowView 的豁免惯例。 */
 // 语义：每个真实用户轮开始（用户消息持久化后、任何工具执行前）对整个工作区拍
 // content-addressed 快照（临时 index `git add -A` + `write-tree`），关联关系存进影子仓
 // 自身的 `refs/zcode-pro/turnsnap/<sessionId>/<messageId>`——自描述、跨重启，且不进
@@ -46,12 +48,12 @@ function runGit(
   });
 }
 
-interface ShadowRepo {
+export interface ShadowRepo {
   gitDir: string;
   workspaceRoot: string;
 }
 
-function shadowRepoFor(workspaceRoot: string): ShadowRepo {
+export function shadowRepoFor(workspaceRoot: string): ShadowRepo {
   const key = createHash("sha1").update(path.resolve(workspaceRoot).toLowerCase()).digest("hex");
   return {
     gitDir: path.join(homedir(), ".zcode", "cli", "snapshots", key),
@@ -59,7 +61,7 @@ function shadowRepoFor(workspaceRoot: string): ShadowRepo {
   };
 }
 
-async function ensureShadowRepo(repo: ShadowRepo): Promise<boolean> {
+export async function ensureShadowRepo(repo: ShadowRepo): Promise<boolean> {
   // 工作区本身必须是 git 仓库（Kilo 同语义）：ignore 规则与安全性都依赖它。
   const inside = await runGit(["rev-parse", "--is-inside-work-tree"], { cwd: repo.workspaceRoot });
   if (!inside.ok || inside.stdout.trim() !== "true") return false;
@@ -75,7 +77,7 @@ async function ensureShadowRepo(repo: ShadowRepo): Promise<boolean> {
 }
 
 /** 临时 index 全量入树：`add -A` + `write-tree`，返回 tree hash（内容寻址）。 */
-async function writeCurrentTree(repo: ShadowRepo, scratchTag: string): Promise<string | null> {
+export async function writeCurrentTree(repo: ShadowRepo, scratchTag: string): Promise<string | null> {
   const indexFile = path.join(repo.gitDir, `index-${scratchTag}`);
   const env = { GIT_INDEX_FILE: indexFile };
   const base = ["--git-dir", repo.gitDir, "--work-tree", repo.workspaceRoot];
@@ -159,51 +161,92 @@ export async function restoreTurnStartWorkspaceSnapshot(
   if (targetTree === currentTree) {
     return { restored: true, files: 0 };
   }
-  // -z：NUL 分隔避免 unicode/空格路径的 C 引号转义；name-status 每 entry 为
-  // <status>NUL<path>NUL。diff-tree 语义：old=target 快照，new=当前。
+  const applied = await applyTreeDiffToWorktree(repo, targetTree, currentTree, this.sessionId);
+  if (!applied.ok) {
+    return { restored: false, reason: "git_failed", message: applied.message };
+  }
+  const files = applied.files;
+  this.logger?.info?.("zcode-pro turn snapshot restored", {
+    ...(options.traceContext ? traceContextToLogContext(options.traceContext) : {}),
+    event: "turn_snapshot.restored",
+    module: "core.runtime.turn_workspace_snapshot",
+    sessionId: this.sessionId,
+    targetMessageId: options.targetMessageId,
+    files,
+  });
+  return { restored: true, files };
+}
+
+/**
+ * zcode-pro: Phase 3 —— 把工作区整树恢复到任意 tree hash（redo 用）。
+ * 语义与 restoreTurnStartWorkspaceSnapshot 相同：A→删除、M/D→恢复。
+ */
+export async function restoreWorkspaceTreeToHash(
+  this: AgentRuntimeInternal,
+  treeHash: string,
+): Promise<TurnWorkspaceSnapshotRestoreResult> {
+  const repo = shadowRepoFor(this.workspaceRoot);
+  if (!(await ensureShadowRepo(repo))) {
+    return { restored: false, reason: "not_a_git_workspace" };
+  }
+  const currentTree = await writeCurrentTree(repo, `redo-${this.sessionId}`);
+  if (!currentTree) {
+    return { restored: false, reason: "git_failed", message: "write-tree failed" };
+  }
+  if (treeHash === currentTree) {
+    return { restored: true, files: 0 };
+  }
+  const applied = await applyTreeDiffToWorktree(repo, treeHash, currentTree, this.sessionId);
+  if (!applied.ok) {
+    return { restored: false, reason: "git_failed", message: applied.message };
+  }
+  return { restored: true, files: applied.files };
+}
+
+/** diff 目标树与当前树并把差异应用到工作区：A→删除、M/D→从目标树恢复。 */
+async function applyTreeDiffToWorktree(
+  repo: ShadowRepo,
+  targetTree: string,
+  currentTree: string,
+  scratchTag: string,
+): Promise<{ ok: true; files: number } | { ok: false; message: string }> {
   const diff = await runGit(
     ["--git-dir", repo.gitDir, "diff-tree", "-r", "--no-renames", "--name-status", "-z", targetTree, currentTree],
     { cwd: repo.workspaceRoot },
   );
   if (!diff.ok) {
-    return { restored: false, reason: "git_failed", message: diff.stderr.slice(0, 200) };
+    return { ok: false, message: diff.stderr.slice(0, 200) };
   }
-  const parts = diff.stdout.split("\0").filter((item) => item.length > 0);
+  const parts = diff.stdout.split(" ").filter((item) => item.length > 0);
   const toRestore: string[] = [];
   const toDelete: string[] = [];
   for (let i = 0; i + 1 < parts.length; i += 2) {
     const status = parts[i]![0];
     const relPath = parts[i + 1]!;
-    // 防御：diff-tree 输出相对路径；拒绝任何越界路径（正常不可能出现）。
     const abs = path.resolve(repo.workspaceRoot, relPath);
     if (!abs.startsWith(repo.workspaceRoot + path.sep) && abs !== repo.workspaceRoot) continue;
     if (status === "A") toDelete.push(abs);
-    else toRestore.push(abs); // M / D 都从快照树恢复
+    else toRestore.push(abs);
   }
   let files = 0;
   if (toRestore.length > 0) {
-    // 恢复路径：临时 index 载入目标树，checkout-index 强制写回 worktree。
-    const indexFile = path.join(repo.gitDir, `index-restore-${this.sessionId}`);
+    const indexFile = path.join(repo.gitDir, `index-restore-${scratchTag}`);
     const env = { GIT_INDEX_FILE: indexFile };
     const base = ["--git-dir", repo.gitDir, "--work-tree", repo.workspaceRoot];
-    const readTree = await runGit([...base, "read-tree", targetTree], {
-      cwd: repo.workspaceRoot,
-      env,
-    });
+    const readTree = await runGit([...base, "read-tree", targetTree], { cwd: repo.workspaceRoot, env });
     if (!readTree.ok) {
       await rm(indexFile, { force: true });
-      return { restored: false, reason: "git_failed", message: readTree.stderr.slice(0, 200) };
+      return { ok: false, message: readTree.stderr.slice(0, 200) };
     }
-    // 分批：Windows 命令行长度限制。
     for (let i = 0; i < toRestore.length; i += 64) {
       const batch = toRestore.slice(i, i + 64);
       const checkout = await runGit(
-        [...base, "checkout-index", "-f", "--", ...batch.map((p) => path.relative(repo.workspaceRoot, p))],
+        [...base, "checkout-index", "-f", "--", ...batch.map((item) => path.relative(repo.workspaceRoot, item))],
         { cwd: repo.workspaceRoot, env },
       );
       if (!checkout.ok) {
         await rm(indexFile, { force: true });
-        return { restored: false, reason: "git_failed", message: checkout.stderr.slice(0, 200) };
+        return { ok: false, message: checkout.stderr.slice(0, 200) };
       }
       files += batch.length;
     }
@@ -217,13 +260,5 @@ export async function restoreTurnStartWorkspaceSnapshot(
       // 已被并发删除：不视为失败。
     }
   }
-  this.logger?.info?.("zcode-pro turn snapshot restored", {
-    ...(options.traceContext ? traceContextToLogContext(options.traceContext) : {}),
-    event: "turn_snapshot.restored",
-    module: "core.runtime.turn_workspace_snapshot",
-    sessionId: this.sessionId,
-    targetMessageId: options.targetMessageId,
-    files,
-  });
-  return { restored: true, files };
+  return { ok: true, files };
 }

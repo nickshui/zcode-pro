@@ -15,7 +15,8 @@ import {
   useSyncExternalStore,
   type ReactNode,
 } from "react";
-import { Hand } from "lucide-react";
+import { Hand, Undo2Icon } from "lucide-react";
+// zcode-pro: message-rewind Phase 3（banner 图标）
 import {
   BUILTIN_MODEL_PROVIDER_IDS,
   buildCustomSupplierKey,
@@ -2159,6 +2160,22 @@ export function SessionPane({
     [sessionId, snapshot?.config, snapshot?.sessionId],
   );
 
+  // zcode-pro: begin message-rewind Phase 3 —— 撤销横幅（重做入口 + 被撤销消息回填输入框）。
+  const [rewindBanner, setRewindBanner] = useState<{
+    baselineMaxRowId: number;
+    filesMode: boolean;
+    messageCount: number;
+  } | null>(null);
+  // 新 user 消息出现即作废重做窗口（与 CLI 侧 clearRewindUndoJournal 同语义）。
+  useEffect(() => {
+    if (!rewindBanner || !snapshot) return;
+    const rows = snapshot.rows.window;
+    const hasNewUserInput = rows.some(
+      (row) => row.rowId > rewindBanner.baselineMaxRowId && row.kind === "userInput",
+    );
+    if (hasNewUserInput) setRewindBanner(null);
+  }, [rewindBanner, snapshot]);
+
   // zcode-pro: begin message-rewind (docs/design/message-rewind.md)
   // 任意历史 user 消息的对话级回滚：CAS 信封与 handleFork 同构（revision/logEpoch）。
   // preserve 仅截断对话；rewind 先把工作区整树恢复到该轮开始前（turn 起点全量快照）
@@ -2180,7 +2197,21 @@ export function SessionPane({
       ).then((ack) => {
         if (ack.status !== "accepted" && ack.status !== "duplicate") {
           logger.warn(`[v4-pane] rewind 被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
+          return;
         }
+        // zcode-pro Phase 3：被撤销的提问回填输入框（"打回最初发送状态"），
+        // 并展示重做横幅——基线 rowId 之后的任何新 user 消息都会作废该窗口。
+        const window = snapshotRef.current?.rows.window ?? [];
+        const undoneRow = window.find((row) => row.rowId === target.rowId);
+        if (undoneRow?.kind === "userInput") {
+          replaceComposerDraft({ text: undoneRow.text });
+        }
+        const baselineMaxRowId = window.reduce((max, row) => Math.max(max, row.rowId), 0);
+        const messageCount = Math.max(
+          1,
+          window.filter((row) => row.rowId >= (undoneRow?.rowId ?? 0)).length,
+        );
+        setRewindBanner({ baselineMaxRowId, filesMode: workspaceMode === "rewind", messageCount });
       });
     },
     [dispatchCommand, sessionId],
@@ -3051,6 +3082,19 @@ export function SessionPane({
     },
     [clearQueueEditOperation],
   );
+
+  // zcode-pro: message-rewind Phase 3 —— redo（撤销的后悔药）。
+  const handleUnrewindConversation = useCallback(() => {
+    const current = snapshotRef.current;
+    if (!sessionId || current === null) return;
+    void dispatchCommand("unrewindConversation", {}, sessionId, current.revision).then((ack) => {
+      if (ack.status !== "accepted" && ack.status !== "duplicate") {
+        logger.warn(`[v4-pane] redo 被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
+        return;
+      }
+      setRewindBanner(null);
+    });
+  }, [dispatchCommand, sessionId]);
 
   const handleFork = useCallback(
     (target: ConversationRowTarget) => {
@@ -4746,6 +4790,36 @@ export function SessionPane({
             className="mx-4 mt-3 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface-hover)] px-3 py-2 text-ui-base text-[var(--color-danger)]"
           >
             {controlLastError.message}
+          </div>
+        ) : null}
+
+        {rewindBanner ? (
+          <div
+            data-testid="v4-rewind-banner"
+            className="zcode-pro-rewind-banner mx-4 mt-3 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--color-border)] bg-[var(--color-surface)] px-3 py-2 text-ui-base text-[var(--color-foreground)]"
+          >
+            <Undo2Icon className="size-4 shrink-0 text-[var(--color-foreground-subtlest)]" />
+            <span className="font-medium">
+              {intl.formatMessage(
+                { id: "chat.rewind.banner.title" },
+                { count: rewindBanner.messageCount },
+              )}
+            </span>
+            <span className="text-ui-sm text-[var(--color-foreground-subtlest)]">
+              {rewindBanner.filesMode
+                ? intl.formatMessage({ id: "chat.rewind.banner.filesRestored" })
+                : intl.formatMessage({ id: "chat.rewind.banner.filesKept" })}
+            </span>
+            <button
+              type="button"
+              onClick={handleUnrewindConversation}
+              className="ml-auto rounded-md border border-[var(--color-border)] px-2 py-1 text-ui-sm font-medium hover:bg-[var(--color-surface-hover)]"
+            >
+              {intl.formatMessage({ id: "chat.rewind.banner.redo" })}
+            </button>
+            <span className="w-full text-ui-xs text-[var(--color-foreground-subtlest)]">
+              {intl.formatMessage({ id: "chat.rewind.banner.hint" })}
+            </span>
           </div>
         ) : null}
 

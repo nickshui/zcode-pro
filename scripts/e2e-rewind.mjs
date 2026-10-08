@@ -70,6 +70,9 @@ proc.stderr.on("data", (c) => process.stderr.write("[agent] " + c));
 function applyFrame(frame) {
   const payload = frame.payload ?? frame;
   if (payload.kind === "snapshot") {
+    // zcode-pro Phase 3：redo 触发的投影 rehydrate 会推送全新快照——本地视图必须整体替换。
+    rows.clear();
+    removedEvents.length = 0;
     const snap = payload.snapshot ?? {};
     const windowRows = Array.isArray(snap.rows) ? snap.rows : (snap.rows?.window ?? []);
     for (const r of windowRows) rows.set(r.rowId, r);
@@ -186,16 +189,37 @@ try {
   if (after.trim() !== "v1") throw new Error("rewind 模式下 bash 副作用未回滚: " + JSON.stringify(after));
   log("rewind(文件) 校验通过：bash 副作用已回滚，notes.txt =", JSON.stringify(after));
 
-  // 8. 续跑一轮，验证截断分支可用
+  // 8. redo：撤销这次撤销——被截断的消息分支与 bash 写入的文件都要完整回来
   const rev3 = await currentRevision();
-  const send3 = await request("v4/command", envelope("sendText", { text: "Reply with exactly: ALIVE" }, { baseRevision: rev3 }));
-  if (send3.status !== "accepted") throw new Error("rewind 后 sendText 未 accepted: " + JSON.stringify(send3));
-  await waitTurnComplete(2); // turn1 + 新 turn（turn2 已被移除）
-  const lastTexts = [...rows.values()].filter((r) => r.kind === "assistantText" && r.state === "complete").map((r) => r.text);
-  log("assistant 完成段:", JSON.stringify(lastTexts));
-  if (!lastTexts.some((t) => t.includes("ALIVE"))) throw new Error("回滚后续跑未成功");
+  const redo = await request("v4/command", envelope("unrewindConversation", {}, { baseRevision: rev3 }));
+  log("redo ack:", JSON.stringify(redo));
+  if (redo.status !== "accepted") throw new Error("unrewindConversation 未 accepted: " + JSON.stringify(redo));
+  if ((redo.result?.restoredMessageCount ?? 0) < 1) throw new Error("redo 未报告恢复消息数");
+  // 等投影 rehydrate 的新快照到达
+  const redoT0 = Date.now();
+  while (Date.now() - redoT0 < 20000) {
+    const done2 = [...rows.values()].some((r) => r.kind === "assistantText" && r.text.includes("DONE2"));
+    if (done2) break;
+    await sleep(1000);
+  }
+  const restoredTexts = [...rows.values()].filter((r) => r.kind === "assistantText" && r.state === "complete").map((r) => r.text);
+  log("redo 后 assistant 完成段:", JSON.stringify(restoredTexts));
+  if (!restoredTexts.some((t) => t.includes("DONE2"))) throw new Error("redo 后 turn2 消息未回归（投影未重建）");
+  const redoneFile = readFileSync(WS + "/notes.txt", "utf8");
+  if (!redoneFile.includes("v2")) throw new Error("redo 后文件未恢复到 pre-undo 状态: " + JSON.stringify(redoneFile));
+  log("redo(文件) 校验通过：notes.txt =", JSON.stringify(redoneFile));
 
-  log("=== E2E 全部通过 ===");
+  // 9. redo 窗口语义：发新消息后 redo 必须被拒绝
+  const rev4 = await currentRevision();
+  const send3 = await request("v4/command", envelope("sendText", { text: "Reply with exactly: ALIVE" }, { baseRevision: rev4 }));
+  if (send3.status !== "accepted") throw new Error("redo 后 sendText 未 accepted: " + JSON.stringify(send3));
+  await sleep(1500);
+  const rev5 = await currentRevision();
+  const redo2 = await request("v4/command", envelope("unrewindConversation", {}, { baseRevision: rev5 }));
+  log("新消息后的 redo ack:", JSON.stringify({ status: redo2.status, reasonCode: redo2.reasonCode }));
+  if (redo2.status === "accepted") throw new Error("新消息后 redo 仍被接受（窗口未作废）");
+
+  log("=== E2E 全部通过（undo + redo）===");
   proc.kill();
   process.exit(0);
 } catch (e) {

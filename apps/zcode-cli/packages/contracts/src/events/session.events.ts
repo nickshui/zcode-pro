@@ -40,7 +40,11 @@ import type {
   MicrocompactBoundaryPayload,
 } from "../compact/index.js";
 import type { HookRunLifecyclePayload } from "../hooks/index.js";
-import type { CheckpointCreatedPayload, RewindTriggeredPayload } from "../rewind/index.js";
+import type {
+  CheckpointCreatedPayload,
+  RewindRevertedPayload,
+  RewindTriggeredPayload,
+} from "../rewind/index.js";
 import type { GoalCompletionVerificationOutput, SessionGoal } from "../tools/target.js";
 import type { ToolSideEffectScope } from "../tools/contract.js";
 import type { ToolResultDisplayPayload } from "../tools/tool-result-metadata.js";
@@ -161,6 +165,8 @@ export const SessionEventType = {
   CompactBoundary: "compact_boundary",
   MicrocompactBoundary: "microcompact_boundary",
   RewindTriggered: "rewind_triggered",
+  // zcode-pro: message-rewind Phase 3 —— rewind 的撤销（redo）。
+  RewindReverted: "rewind_reverted",
   CheckpointCreated: "checkpoint_created",
   TargetChanged: "target_changed",
   TargetCompletionVerification: "target_completion_verification",
@@ -1235,4 +1241,6 @@ export type SessionEventPayload =
   | MicrocompactBoundaryEventPayload
   | CheckpointCreatedPayload
   | RewindTriggeredPayload
+  // zcode-pro: message-rewind Phase 3
+  | RewindRevertedPayload
   | CompactBoundaryPayload;

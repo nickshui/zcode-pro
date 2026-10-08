@@ -4271,6 +4271,8 @@ const zhCN: Record<string, string> = {
   "chat.send": "发送",
   "chat.scrollToBottom": "滚动到底部",
   "chat.message.edit": "编辑",
+  "chat.message.rewind": "回滚到此",
+  "chat.message.rewind.tooltip": "撤销这条消息及之后的所有对话（不影响工作区文件）",
   "chat.message.restore": "恢复",
   "chat.message.copy": "复制",
   "chat.message.copy.copied": "已复制",

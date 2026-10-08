@@ -2159,6 +2159,29 @@ export function SessionPane({
     [sessionId, snapshot?.config, snapshot?.sessionId],
   );
 
+  // zcode-pro: begin message-rewind (docs/design/message-rewind.md)
+  // 任意历史 user 消息的对话级回滚：CAS 信封与 handleFork 同构（revision/logEpoch），
+  // Phase 1 固定 preserve（不动工作区文件）；截断后的时间线由 row.removed 自动收口。
+  const handleRewindConversation = useCallback(
+    (target: ConversationRowTarget) => {
+      const current = snapshotRef.current;
+      if (!sessionId || current === null) return;
+      void dispatchCommand(
+        "rewindConversation",
+        { target, workspaceMode: "preserve" },
+        sessionId,
+        current.revision,
+        current.logEpoch,
+      ).then((ack) => {
+        if (ack.status !== "accepted" && ack.status !== "duplicate") {
+          logger.warn(`[v4-pane] rewind 被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
+        }
+      });
+    },
+    [dispatchCommand, sessionId],
+  );
+  // zcode-pro: end
+
   const rowContext = useMemo<ConversationRowRenderContext>(
     () => ({
       workspacePath,
@@ -2215,6 +2238,8 @@ export function SessionPane({
       fetchFileChanges: handleFetchFileChanges,
       previewFileRewind: workspaceFileRewindEnabled ? handlePreviewFileRewind : undefined,
       applyFileRewind: workspaceFileRewindEnabled ? handleApplyFileRewind : undefined,
+      // zcode-pro: message-rewind —— 行级可用性由协议 canRewind 裁决，这里只注入能力。
+      rewindConversation: handleRewindConversation,
       readAttachment: attachmentRead,
       readAttachmentRange: attachmentReadRange,
     }),
@@ -2270,6 +2295,8 @@ export function SessionPane({
       handleFetchFileChanges,
       handlePreviewFileRewind,
       handleApplyFileRewind,
+      // zcode-pro: message-rewind
+      handleRewindConversation,
       attachmentRead,
       attachmentReadRange,
     ],

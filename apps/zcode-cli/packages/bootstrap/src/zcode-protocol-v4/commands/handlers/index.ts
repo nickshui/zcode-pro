@@ -11,6 +11,8 @@ import { sessionFlowHandlers } from "./session-flow.js";
 import { sessionMgmtHandlers } from "./session-mgmt.js";
 import { selectionSideSessionHandlers } from "./selection-side-session.js";
 import { assistantFeedbackHandlers } from "./assistant-feedback.js";
+// zcode-pro: message-rewind
+import { rewindConversationHandlers } from "./rewind-conversation.js";
 
 export const NATIVE_HANDLERS = {
   ...sessionFlowHandlers,
@@ -23,4 +25,6 @@ export const NATIVE_HANDLERS = {
   ...forkEditRetryHandlers,
   ...fileRewindHandlers,
   ...assistantFeedbackHandlers,
+  // zcode-pro: message-rewind
+  ...rewindConversationHandlers,
 } as const;

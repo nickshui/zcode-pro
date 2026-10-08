@@ -161,6 +161,8 @@ function rowTargetActionForCommand(
     case "editUserQuery":
     case "retryTurn":
     case "applyFileRewind":
+    // zcode-pro: message-rewind
+    case "rewindConversation":
     case "setAssistantFeedback":
       return type;
     default:

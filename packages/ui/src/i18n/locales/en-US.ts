@@ -4568,6 +4568,8 @@ const enUS: Record<string, string> = {
   "chat.send": "Send",
   "chat.scrollToBottom": "Scroll to bottom",
   "chat.message.edit": "Edit",
+  "chat.message.rewind": "Rewind to here",
+  "chat.message.rewind.tooltip": "Undo this message and everything after it (workspace files untouched)",
   "chat.message.restore": "Restore",
   "chat.message.copy": "Copy",
   "chat.message.copy.copied": "Copied",

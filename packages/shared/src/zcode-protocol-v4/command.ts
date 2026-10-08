@@ -2,6 +2,10 @@ import { localTtftContextSchema, localTtftClockSchema } from "../localTtft.js";
 // Command 层：信封 / ACK / 命令全集 payload。
 // conversation rewind 无独立命令（裁决：= editUserQuery 的 UI 入口）；
 // workspace-only 文件撤销走 applyFileRewind，不截断聊天历史。
+// zcode-pro: begin message-rewind (docs/design/message-rewind.md)
+// 上 fork 追加 rewindConversation：任意历史 user 消息的对话级回滚（不重发、不限
+// latest）；editUserQuery 的 latest-only 守卫与语义保持原样不动。
+// zcode-pro: end
 import { z } from "zod";
 import { conversationRowTargetSchema, timestampSchema } from "./core.js";
 import { attachmentRefSchema } from "./attachment-ref.js";
@@ -159,6 +163,16 @@ export const commandPayloadSchemas = {
     workspaceMode: z.enum(["preserve", "rewind"]).optional(),
   }),
   retryTurn: z.object({ target: conversationRowTargetSchema }),
+  // zcode-pro: begin message-rewind
+  // 任意历史 user 消息的对话级回滚：branch cut 截断该消息及其后所有消息，
+  // 不重发新输入（区别于 editUserQuery/retryTurn），不限 latest。
+  rewindConversation: z.object({
+    target: conversationRowTargetSchema,
+    // 缺省 preserve：仅截断对话分支，不动工作区文件。
+    // rewind = 同时恢复该轮文件；Phase 2（agent 侧全量快照）完成前 CLI 侧拒绝。
+    workspaceMode: z.enum(["preserve", "rewind"]).optional(),
+  }),
+  // zcode-pro: end
   setAssistantFeedback: z.object({
     target: conversationRowTargetSchema,
     feedback: z.enum(["like", "dislike"]).nullable(),
@@ -298,6 +312,8 @@ export const COMMANDS_REQUIRING_BASE_REVISION: ReadonlySet<CommandType> = new Se
   "forkAssistant",
   "editUserQuery",
   "retryTurn",
+  // zcode-pro: message-rewind —— CAS 同档命令，防并发窗口误截断。
+  "rewindConversation",
   "setAssistantFeedback",
   "sendQueuedNow",
   "editQueueItem",
@@ -316,6 +332,8 @@ export const ROW_TARGETING_COMMANDS: ReadonlySet<CommandType> = new Set([
   "forkAssistant",
   "editUserQuery",
   "retryTurn",
+  // zcode-pro: message-rewind
+  "rewindConversation",
   "setAssistantFeedback",
 ]);
 

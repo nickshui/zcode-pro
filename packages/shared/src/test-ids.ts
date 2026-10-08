@@ -565,6 +565,8 @@ export const TID_V4_HOOK_DETAILS_TRIGGER = "v4-hook-details-trigger";
 export const TID_V4_HOOK_DETAILS_CONTENT = "v4-hook-details-content";
 /** v4 user 行 edit 按钮（动态后缀为 rowId） */
 export const TID_V4_EDIT = "v4-edit";
+/** zcode-pro: message-rewind —— v4 user 行回滚按钮（动态后缀为 rowId） */
+export const TID_V4_REWIND = "v4-rewind";
 /** v4 user query 编辑输入框（动态后缀为 rowId） */
 export const TID_V4_EDIT_INPUT = "v4-edit-input";
 /** v4 user query 编辑提交按钮（动态后缀为 rowId） */

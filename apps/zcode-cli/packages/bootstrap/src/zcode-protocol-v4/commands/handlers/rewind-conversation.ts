@@ -79,9 +79,18 @@ async function rewindConversation(
       traceContext: record.traceContext,
     });
     if (!restore.restored) {
-      throw new V4RewindWorkspaceRestoreError(restore.reason ?? "git_failed", restore.message);
+      // 非 git 工作区没有可恢复的快照（Kilo 同语义：无 checkpoint 不挡对话回滚）。
+      // 降级为 preserve 继续截断对话；其余失败维持 fail-closed（文件未动、对话不截断）。
+      if (restore.reason !== "not_a_git_workspace") {
+        throw new V4RewindWorkspaceRestoreError(restore.reason ?? "git_failed", restore.message);
+      }
+      host.logger?.warn?.("rewind workspace restore degraded to preserve (not a git workspace)", {
+        sessionId: record.app.sessionId,
+        targetMessageId: String(targetMessageId),
+      });
+    } else {
+      filesRestored = true;
     }
-    filesRestored = true;
   }
   const result = await record.app.runtime.rewindConversationToMessage({
     events: [],

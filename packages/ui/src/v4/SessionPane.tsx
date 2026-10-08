@@ -2203,8 +2203,16 @@ export function SessionPane({
         // 并展示重做横幅——基线 rowId 之后的任何新 user 消息都会作废该窗口。
         const window = snapshotRef.current?.rows.window ?? [];
         const undoneRow = window.find((row) => row.rowId === target.rowId);
-        if (undoneRow?.kind === "userInput") {
-          replaceComposerDraft({ text: undoneRow.text });
+        if (undoneRow?.kind === "userInput" && workspaceKey) {
+          // 附件随正文一起回到输入框（复用队列撤回编辑的 ComposerRestoreRequest 管道）。
+          setComposerRestoreRequest({
+            requestId: nextComposerRestoreRequestIdRef.current++,
+            sessionId,
+            workspaceKey,
+            inputKind: "sendText",
+            text: undoneRow.text,
+            attachments: undoneRow.attachments ?? [],
+          });
         }
         const baselineMaxRowId = window.reduce((max, row) => Math.max(max, row.rowId), 0);
         const messageCount = Math.max(
@@ -3084,17 +3092,35 @@ export function SessionPane({
   );
 
   // zcode-pro: message-rewind Phase 3 —— redo（撤销的后悔药）。
+  // CAS stale 自动重试一次（撤销后投影 revision 推进与点击存在竞态，stale 按设计静默，
+  // 这里以刷新后的 revision 重发）；其余拒绝 toast 可见化，避免"点了没反应"。
   const handleUnrewindConversation = useCallback(() => {
-    const current = snapshotRef.current;
-    if (!sessionId || current === null) return;
-    void dispatchCommand("unrewindConversation", {}, sessionId, current.revision).then((ack) => {
+    if (!sessionId) return;
+    const send = (revision?: number) => {
+      const current = snapshotRef.current;
+      if (current === null) return null;
+      return dispatchCommand("unrewindConversation", {}, sessionId, revision ?? current.revision);
+    };
+    void (async () => {
+      const firstAck = await send();
+      if (!firstAck) return;
+      const ack = firstAck.status === "stale" ? ((await send()) ?? firstAck) : firstAck;
       if (ack.status !== "accepted" && ack.status !== "duplicate") {
         logger.warn(`[v4-pane] redo 被拒绝: ${ack.status} ${ack.reasonCode ?? ""}`);
+        toast(
+          intl.formatMessage(
+            { id: "chat.rewind.redoRejected" },
+            { reason: ack.reasonCode ?? ack.status },
+          ),
+        );
         return;
       }
       setRewindBanner(null);
+    })().catch((error) => {
+      logger.warn("[v4-pane] redo 发送失败", error);
+      toast(intl.formatMessage({ id: "chat.rewind.redoFailed" }));
     });
-  }, [dispatchCommand, sessionId]);
+  }, [dispatchCommand, intl, sessionId]);
 
   const handleFork = useCallback(
     (target: ConversationRowTarget) => {

@@ -6,6 +6,7 @@ import { randomUUID } from "node:crypto";
 import { appendFileSync, readFileSync } from "node:fs";
 
 const WS = process.argv[2];
+const MODE = process.env.E2E_MODE === "preserve" ? "preserve" : "rewind";
 const CLI = new URL("../apps/zcode-cli/packages/cli/dist/zcode.cjs", import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1");
 const log = (...a) => console.log("[e2e]", ...a);
 
@@ -169,7 +170,7 @@ try {
 
   // 5. 发 rewindConversation（rewind 模式：对话 + 工作区整树恢复到 turn2 开始前）
   const rev2 = await currentRevision();
-  const rewind = await request("v4/command", envelope("rewindConversation", { target: { rowId: target.rowId, entityId: target.entityId }, workspaceMode: "rewind" }, { baseRevision: rev2, baseLogEpoch: logEpoch }));
+  const rewind = await request("v4/command", envelope("rewindConversation", { target: { rowId: target.rowId, entityId: target.entityId }, workspaceMode: MODE }, { baseRevision: rev2, baseLogEpoch: logEpoch }));
   log("rewind ack:", JSON.stringify(rewind));
   if (rewind.status !== "accepted") throw new Error("rewindConversation 未 accepted: " + JSON.stringify(rewind));
   await sleep(2000);
@@ -185,9 +186,11 @@ try {
   log("截断后仍可见的 realUser 行数:", visibleUser.length);
 
   // 7. rewind 语义：bash 追加的 v2 必须被整树恢复撤销，notes.txt 回到 v1
-  const after = readFileSync(WS + "/notes.txt", "utf8");
-  if (after.trim() !== "v1") throw new Error("rewind 模式下 bash 副作用未回滚: " + JSON.stringify(after));
-  log("rewind(文件) 校验通过：bash 副作用已回滚，notes.txt =", JSON.stringify(after));
+  if (MODE === "rewind") {
+    const after = readFileSync(WS + "/notes.txt", "utf8");
+    if (after.trim() !== "v1") throw new Error("rewind 模式下 bash 副作用未回滚: " + JSON.stringify(after));
+    log("rewind(文件) 校验通过：bash 副作用已回滚，notes.txt =", JSON.stringify(after));
+  }
 
   // 8. redo：撤销这次撤销——被截断的消息分支与 bash 写入的文件都要完整回来
   const rev3 = await currentRevision();
@@ -205,9 +208,11 @@ try {
   const restoredTexts = [...rows.values()].filter((r) => r.kind === "assistantText" && r.state === "complete").map((r) => r.text);
   log("redo 后 assistant 完成段:", JSON.stringify(restoredTexts));
   if (!restoredTexts.some((t) => t.includes("DONE2"))) throw new Error("redo 后 turn2 消息未回归（投影未重建）");
-  const redoneFile = readFileSync(WS + "/notes.txt", "utf8");
-  if (!redoneFile.includes("v2")) throw new Error("redo 后文件未恢复到 pre-undo 状态: " + JSON.stringify(redoneFile));
-  log("redo(文件) 校验通过：notes.txt =", JSON.stringify(redoneFile));
+  if (MODE === "rewind") {
+    const redoneFile = readFileSync(WS + "/notes.txt", "utf8");
+    if (!redoneFile.includes("v2")) throw new Error("redo 后文件未恢复到 pre-undo 状态: " + JSON.stringify(redoneFile));
+    log("redo(文件) 校验通过：notes.txt =", JSON.stringify(redoneFile));
+  }
 
   // 9. redo 窗口语义：发新消息后 redo 必须被拒绝
   const rev4 = await currentRevision();

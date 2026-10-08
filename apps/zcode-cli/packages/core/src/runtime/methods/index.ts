@@ -140,6 +140,11 @@ import { rewindConversationToMessage } from "./rewind-message.js";
 import { rewindCascadeToMessage } from "./rewind-message.js";
 import { rewindToMessage } from "./rewind-message.js";
 import { rewindWorkspaceToMessage } from "./rewind-message.js";
+// zcode-pro: message-rewind Phase 2
+import {
+  captureTurnStartWorkspaceSnapshot,
+  restoreTurnStartWorkspaceSnapshot,
+} from "./turn-workspace-snapshot.js";
 import { restoreWorkspaceCheckpointArtifact } from "./workspace-checkpoints.js";
 import { copySessionMessagesForFork } from "./workspace-checkpoints.js";
 import { listWorkspaceCheckpoints } from "./workspace-checkpoints.js";
@@ -340,6 +345,9 @@ export function installAgentRuntimeMethods(ctor: AgentRuntimeConstructor): void 
   proto.rewindToMessage = rewindToMessage;
   proto.rewindCascadeToMessage = rewindCascadeToMessage;
   proto.rewindConversationToMessage = rewindConversationToMessage;
+  // zcode-pro: message-rewind Phase 2
+  proto.captureTurnStartWorkspaceSnapshot = captureTurnStartWorkspaceSnapshot;
+  proto.restoreTurnStartWorkspaceSnapshot = restoreTurnStartWorkspaceSnapshot;
   proto.rewindWorkspaceToMessage = rewindWorkspaceToMessage;
   proto.finishUnavailableRewind = finishUnavailableRewind;
   proto.restoreWorkspaceCheckpointArtifact = restoreWorkspaceCheckpointArtifact;

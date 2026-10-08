@@ -48,8 +48,8 @@ pnpm --dir packages/desktop dev:runtime
 
 | 阶段 | 能力 | 状态 |
 | --- | --- | --- |
-| Phase 1 | 任意消息**对话回滚**（`rewindConversation` 命令 + 行级 `canRewind` + UI 按钮） | 开发中（`feat/message-rewind`） |
-| Phase 2 | agent 侧 shadow git 全仓快照，覆盖 bash 等一切文件副作用 | 设计完成 |
+| Phase 1 | 任意消息**对话回滚**（`rewindConversation` 命令 + 行级 `canRewind` + UI 按钮） | ✅ 完成并通过无头 e2e（`scripts/e2e-rewind.mjs`） |
+| Phase 2 | agent 侧 shadow git 全仓快照，覆盖 bash 等一切文件副作用（UI 第二按钮"回滚对话和文件"） | ✅ 完成并通过 e2e（bash 追加被整树回滚） |
 | Phase 3 | 两阶段回滚 + redo（借鉴 Kilo revert/unrevert 设计） | 设计中 |
 
 技术设计文档：[docs/design/message-rewind.md](docs/design/message-rewind.md)

@@ -95,6 +95,8 @@ import type {
   ContinueActiveTargetLoopOptions,
   ConversationBeforeInputForkOptions,
   ConversationRewindResult,
+  // zcode-pro: message-rewind Phase 2
+  TurnWorkspaceSnapshotRestoreResult,
   ExecuteToolsOptions,
   ExecuteToolsResult,
   ExecuteTurnOptions,
@@ -631,6 +633,16 @@ export interface AgentRuntime {
     targetMessageId: MessageId;
     traceContext: TraceContext;
   }): Promise<ConversationRewindResult>;
+  // zcode-pro: message-rewind Phase 2 —— turn 起点全量快照（shadow git）。
+  // capture 在用户消息持久化后、工具执行前调用；失败静默降级（不影响 turn）。
+  captureTurnStartWorkspaceSnapshot(options: {
+    messageId: MessageId;
+    traceContext: TraceContext;
+  }): Promise<void>;
+  restoreTurnStartWorkspaceSnapshot(options: {
+    targetMessageId: MessageId;
+    traceContext?: TraceContext;
+  }): Promise<TurnWorkspaceSnapshotRestoreResult>;
   previewWorkspaceFileRewind(options?: {
     abortSignal?: AbortSignal;
     targetCheckpointId?: string;

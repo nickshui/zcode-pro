@@ -148,9 +148,9 @@ try {
   await waitTurnComplete(1);
   log("turn1 完成，notes.txt =", readFileSync(WS + "/notes.txt", "utf8").trim());
 
-  // 3. 第二轮（编辑文件）
+  // 3. 第二轮（bash 副作用：append v2 —— Phase 2 快照必须能覆盖的路径）
   const rev1 = await currentRevision();
-  const send2 = await request("v4/command", envelope("sendText", { text: "Use the edit tool to replace the content v1 in notes.txt with v1\\nv2. Then reply with exactly: DONE2" }, { baseRevision: rev1 }));
+  const send2 = await request("v4/command", envelope("sendText", { text: "Run this exact bash command in the workspace: printf 'v2\\n' >> notes.txt . Then reply with exactly: DONE2" }, { baseRevision: rev1 }));
   if (send2.status !== "accepted") throw new Error("sendText2 未 accepted: " + JSON.stringify(send2));
   await waitTurnComplete(2);
   log("turn2 完成，notes.txt =", JSON.stringify(readFileSync(WS + "/notes.txt", "utf8")));
@@ -164,9 +164,9 @@ try {
   const first = userRows[0];
   log("对照行(第1条) actions=", JSON.stringify(first.actions));
 
-  // 5. 发 rewindConversation（preserve 模式）回滚到第 2 条 user 消息
+  // 5. 发 rewindConversation（rewind 模式：对话 + 工作区整树恢复到 turn2 开始前）
   const rev2 = await currentRevision();
-  const rewind = await request("v4/command", envelope("rewindConversation", { target: { rowId: target.rowId, entityId: target.entityId }, workspaceMode: "preserve" }, { baseRevision: rev2, baseLogEpoch: logEpoch }));
+  const rewind = await request("v4/command", envelope("rewindConversation", { target: { rowId: target.rowId, entityId: target.entityId }, workspaceMode: "rewind" }, { baseRevision: rev2, baseLogEpoch: logEpoch }));
   log("rewind ack:", JSON.stringify(rewind));
   if (rewind.status !== "accepted") throw new Error("rewindConversation 未 accepted: " + JSON.stringify(rewind));
   await sleep(2000);
@@ -181,10 +181,10 @@ try {
   const visibleUser = [...rows.values()].filter((r) => r.kind === "userInput" && r.origin === "realUser" && r.rowId < (removedEvents[0]?.fromRowId ?? Infinity));
   log("截断后仍可见的 realUser 行数:", visibleUser.length);
 
-  // 7. preserve 语义：notes.txt 不受影响
+  // 7. rewind 语义：bash 追加的 v2 必须被整树恢复撤销，notes.txt 回到 v1
   const after = readFileSync(WS + "/notes.txt", "utf8");
-  if (!after.includes("v2")) throw new Error("preserve 模式下文件被改动: " + JSON.stringify(after));
-  log("preserve 校验通过，notes.txt 未变 =", JSON.stringify(after));
+  if (after.trim() !== "v1") throw new Error("rewind 模式下 bash 副作用未回滚: " + JSON.stringify(after));
+  log("rewind(文件) 校验通过：bash 副作用已回滚，notes.txt =", JSON.stringify(after));
 
   // 8. 续跑一轮，验证截断分支可用
   const rev3 = await currentRevision();

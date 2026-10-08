@@ -2,7 +2,10 @@
 
 ## 主线：任意消息级回滚（对齐 Kilo Code 体验）
 
-### Phase 1 —— 任意消息对话回滚（纯加法）✅ 开发中
+### Phase 1 —— 任意消息对话回滚（纯加法）✅ 完成（e2e 通过）
+
+无头 e2e：`node scripts/e2e-rewind.mjs <工作区绝对路径>`（直连 app-server stdio 走 v4 协议，
+覆盖 createSession/sendText/rewind/续跑全链路）。
 
 目标：GUI 任意 user 消息行 hover 出现"回滚到此消息"按钮，点击后该消息之后的所有
 对话被截断（branch cut 软删除，可冷恢复），工作区文件保持不变（`workspaceMode=preserve`）。
@@ -18,11 +21,15 @@
   `ConversationFileRewindDialog` 作确认弹窗
 - core：**零改动**
 
-### Phase 2 —— agent 侧 shadow git 全仓快照
+### Phase 2 —— agent 侧 shadow git 全仓快照 ✅ 完成（e2e 通过：bash 追加被整树回滚）
 
-目标：补齐文件副作用覆盖。现有 checkpoint 只覆盖 `edit`/`write` 工具（JSON
-artifact，before/after），**bash 产生的文件变更无任何快照**，导致回滚文件时
-fail-closed 拒绝。
+实现：`core/src/runtime/methods/turn-workspace-snapshot.ts`——每个真实用户轮开始
+（用户消息持久化后、工具执行前）以临时 `GIT_INDEX_FILE` + `git add -A` +
+`write-tree` 拍 content-addressed 快照，关联存进影子仓（`~/.zcode/cli/snapshots/
+<sha1(workspace)>`）自身的 `refs/zcode-pro/turnsnap/<sessionId>/<messageId>`——
+自描述、跨重启、不进 CheckpointCreated 事件流（避免污染既有 edit/retry 级联预检）。
+回滚：`diff-tree` 目标树与当前树，A→删除、M/D→`read-tree + checkout-index` 恢复。
+UI：user 行第二个按钮"回滚对话和文件"（FileClock 图标）。
 
 方案：将 `packages/services/src/git/repo/gitCheckpointRepo.ts`（临时
 `GIT_INDEX_FILE` + `write-tree` + hidden ref，不污染用户 git）移植为 CLI agent

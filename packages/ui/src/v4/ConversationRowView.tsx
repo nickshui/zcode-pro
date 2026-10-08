@@ -30,6 +30,7 @@ import {
   TID_V4_FORK,
   // zcode-pro: message-rewind
   TID_V4_REWIND,
+  TID_V4_REWIND_FILES,
   TID_V4_ROW,
   TID_V4_ROW_ATTACHMENTS,
   testId,
@@ -1308,7 +1309,8 @@ const UserInputRowView = memo(function UserInputRowView({
         ) : null}
         {/* zcode-pro: begin message-rewind —— 任意历史 user 行的对话级回滚入口。
             canRewind 由 CLI 投影下发（realUser + editTarget 登记即可，不限 latest）；
-            能力经 ConversationRowRenderContext.rewindConversation 注入（与 applyFileRewind 同模式）。 */}
+            能力经 ConversationRowRenderContext.rewindConversation 注入（与 applyFileRewind 同模式）。
+            双入口：仅回滚对话（Undo2）/ 回滚对话并恢复该轮开始前的工作区文件（FileClock）。 */}
         {context.rewindConversation && row.entityId && row.actions?.canRewind === true ? (
           <MessageAction
             label={intl.formatMessage({ id: "chat.message.rewind" })}
@@ -1320,6 +1322,22 @@ const UserInputRowView = memo(function UserInputRowView({
             }}
           >
             <Undo2Icon className="size-3.5" />
+          </MessageAction>
+        ) : null}
+        {context.rewindConversation && row.entityId && row.actions?.canRewind === true ? (
+          <MessageAction
+            label={intl.formatMessage({ id: "chat.message.rewind.files" })}
+            tooltip={intl.formatMessage({ id: "chat.message.rewind.files.tooltip" })}
+            data-testid={testId(TID_V4_REWIND_FILES, String(row.rowId))}
+            onClick={() => {
+              if (!context.rewindConversation || !row.entityId) return;
+              void context.rewindConversation(
+                { rowId: row.rowId, entityId: row.entityId },
+                { workspaceMode: "rewind" },
+              );
+            }}
+          >
+            <FileClockIcon className="size-3.5" />
           </MessageAction>
         ) : null}
         {/* zcode-pro: end */}

@@ -64,6 +64,8 @@ import { appendBrowserTurnScreenshot } from "./browser-turn-screenshot.js";
 import { clearBrowserTurnState } from "../../repl/browser-turn-state.js";
 import { applySubmissionExecutionState, createTurnModel } from "./turn-model.js";
 import { rebuildContextPrefix } from "./context-refresh.js";
+// zcode-pro: message-rewind Phase 2
+import { captureTurnStartWorkspaceSnapshot } from "./turn-workspace-snapshot.js";
 
 const TARGET_RUN_HEARTBEAT_MS = 15_000;
 
@@ -527,6 +529,14 @@ export async function executeTurnCommand(
                 : { epilogueStart: options.epilogueStart }),
             },
           );
+          // zcode-pro: begin message-rewind Phase 2 —— turn 起点全量快照。
+          // 用户消息持久化后、任何工具执行前捕获（覆盖 bash 等一切文件副作用）；
+          // 非 git 工作区 / git 缺失 / 快照失败一律静默降级，绝不阻塞 turn。
+          await captureTurnStartWorkspaceSnapshot.call(this, {
+            messageId: userMessageId,
+            traceContext: turnTraceContext,
+          });
+          // zcode-pro: end
           // 标题生成以前等主 turn 成功后才启动，用户 stop/cancel 首轮请求时
           // generated title 永远没有机会发起。首条 query 持久化后即可异步生成，避免被主链路取消拖死。
           const titleGenerationStarted = maybeStartSessionTitleGeneration.call(

@@ -617,6 +617,15 @@ export interface ConversationRewindResult {
   targetMessageId: MessageId;
 }
 
+// zcode-pro: message-rewind Phase 2 —— turn 起点全量快照恢复结果。
+export interface TurnWorkspaceSnapshotRestoreResult {
+  restored: boolean;
+  reason?: "snapshot_unavailable" | "not_a_git_workspace" | "git_failed";
+  message?: string;
+  /** 恢复涉及的文件数（新增删除 + 内容恢复）。 */
+  files?: number;
+}
+
 export interface WorkspaceForkResult {
   checkpoint?: CheckpointCreatedPayload;
   copiedMessageCount: number;

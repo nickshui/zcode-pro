@@ -26,13 +26,15 @@ class V4RewindTargetError extends Error {
   }
 }
 
-/** Phase 2（agent 侧全量快照）完成前不放开组合文件回滚。 */
-class V4RewindWorkspaceModeUnsupportedError extends Error {
-  readonly reasonCode = "guard.rewindWorkspaceModeUnsupported";
+/** Phase 2：工作区恢复失败（无快照 / 非 git 工作区 / git 错误），文件与对话都不动。 */
+class V4RewindWorkspaceRestoreError extends Error {
+  readonly reasonCode = "guard.rewindWorkspaceRestoreFailed";
 
-  constructor() {
-    super("rewindConversation workspaceMode=rewind 尚未支持（等待 Phase 2 全量快照）");
-    this.name = "V4RewindWorkspaceModeUnsupportedError";
+  constructor(reason: string, message?: string) {
+    super(
+      `rewindConversation 工作区快照恢复失败: ${reason}${message ? ` (${message})` : ""}`,
+    );
+    this.name = "V4RewindWorkspaceRestoreError";
   }
 }
 
@@ -41,9 +43,6 @@ async function rewindConversation(
   envelope: CommandEnvelope,
 ): Promise<CommandResult | undefined> {
   const payload = envelope.payload as CommandPayloadMap["rewindConversation"];
-  if ((payload.workspaceMode ?? "preserve") === "rewind") {
-    throw new V4RewindWorkspaceModeUnsupportedError();
-  }
   const record = requireRecord(host, envelope.sessionId);
   // 翻译在 preempt 之前完成：preempt 触发的 turn 终态事件会推进投影，
   // 先解析再抢占，与 editUserQuery 的顺序一致。
@@ -61,6 +60,17 @@ async function rewindConversation(
       abortMessage: "v4 rewindConversation preempts active turn",
       goalPausedMutationReason: "rewind_conversation_goal_paused",
     });
+  }
+  // zcode-pro: Phase 2 —— rewind 模式先整树恢复工作区（覆盖 bash 等一切副作用），
+  // 恢复成功才提交 conversation branch cut（与 editUserQuery 的"文件先行"失败语义一致）。
+  if ((payload.workspaceMode ?? "preserve") === "rewind") {
+    const restore = await record.app.runtime.restoreTurnStartWorkspaceSnapshot({
+      targetMessageId: targetMessageId as MessageId,
+      traceContext: record.traceContext,
+    });
+    if (!restore.restored) {
+      throw new V4RewindWorkspaceRestoreError(restore.reason ?? "git_failed", restore.message);
+    }
   }
   const result = await record.app.runtime.rewindConversationToMessage({
     events: [],

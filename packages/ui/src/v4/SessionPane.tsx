@@ -2160,15 +2160,20 @@ export function SessionPane({
   );
 
   // zcode-pro: begin message-rewind (docs/design/message-rewind.md)
-  // 任意历史 user 消息的对话级回滚：CAS 信封与 handleFork 同构（revision/logEpoch），
-  // Phase 1 固定 preserve（不动工作区文件）；截断后的时间线由 row.removed 自动收口。
+  // 任意历史 user 消息的对话级回滚：CAS 信封与 handleFork 同构（revision/logEpoch）。
+  // preserve 仅截断对话；rewind 先把工作区整树恢复到该轮开始前（turn 起点全量快照）
+  // 再截断。截断后的时间线由 row.removed 自动收口。
   const handleRewindConversation = useCallback(
-    (target: ConversationRowTarget) => {
+    (
+      target: ConversationRowTarget,
+      opts?: { workspaceMode: "preserve" | "rewind" },
+    ) => {
       const current = snapshotRef.current;
       if (!sessionId || current === null) return;
+      const workspaceMode = opts?.workspaceMode ?? "preserve";
       void dispatchCommand(
         "rewindConversation",
-        { target, workspaceMode: "preserve" },
+        { target, workspaceMode },
         sessionId,
         current.revision,
         current.logEpoch,

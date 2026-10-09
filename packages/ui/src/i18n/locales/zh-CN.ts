@@ -4280,6 +4280,7 @@ const zhCN: Record<string, string> = {
   "chat.rewind.banner.filesRestored": "工作区文件已一并恢复到该轮开始前",
   "chat.rewind.banner.filesKept": "工作区文件保持原样",
   "chat.rewind.banner.hint": "发送新消息前可以重做这些更改；原提问已回填到输入框。",
+  "chat.rewind.banner.redone": "已重做 · 还可重做 {count} 步",
   "chat.rewind.redoRejected": "重做不可用（{reason}）",
   "chat.rewind.redoFailed": "重做发送失败，请重试",
   "chat.message.restore": "恢复",

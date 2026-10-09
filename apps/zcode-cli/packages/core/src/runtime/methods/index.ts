@@ -145,6 +145,7 @@ import { rewindWorkspaceToMessage } from "./rewind-message.js";
 import {
   captureTurnStartWorkspaceSnapshot,
   restoreTurnStartWorkspaceSnapshot,
+  restoreWorkspaceTreeToHash,
 } from "./turn-workspace-snapshot.js";
 import {
   captureRewindUndoPoint,
@@ -355,6 +356,7 @@ export function installAgentRuntimeMethods(ctor: AgentRuntimeConstructor): void 
   // zcode-pro: message-rewind Phase 2
   proto.captureTurnStartWorkspaceSnapshot = captureTurnStartWorkspaceSnapshot;
   proto.restoreTurnStartWorkspaceSnapshot = restoreTurnStartWorkspaceSnapshot;
+  proto.restoreWorkspaceTreeToHash = restoreWorkspaceTreeToHash;
   proto.captureRewindUndoPoint = captureRewindUndoPoint;
   proto.commitRewindUndoPoint = commitRewindUndoPoint;
   proto.undoConversationRewind = undoConversationRewind;

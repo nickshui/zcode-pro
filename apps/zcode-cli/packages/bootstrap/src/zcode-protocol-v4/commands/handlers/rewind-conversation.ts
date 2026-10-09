@@ -79,9 +79,10 @@ async function rewindConversation(
       traceContext: record.traceContext,
     });
     if (!restore.restored) {
-      // 非 git 工作区没有可恢复的快照（Kilo 同语义：无 checkpoint 不挡对话回滚）。
-      // 降级为 preserve 继续截断对话；其余失败维持 fail-closed（文件未动、对话不截断）。
-      if (restore.reason !== "not_a_git_workspace") {
+      // 非 git 工作区 / 该轮无快照（如历史版本产生的会话）没有可恢复的树
+      // （Kilo 同语义：无 checkpoint 不挡对话回滚）。降级为 preserve 继续截断对话；
+      // 其余失败维持 fail-closed（文件未动、对话不截断）。
+      if (restore.reason !== "not_a_git_workspace" && restore.reason !== "snapshot_unavailable") {
         throw new V4RewindWorkspaceRestoreError(restore.reason ?? "git_failed", restore.message);
       }
       host.logger?.warn?.("rewind workspace restore degraded to preserve (not a git workspace)", {
@@ -98,6 +99,18 @@ async function rewindConversation(
     traceContext: record.traceContext,
   });
   if (result.strategy !== RewindStrategy.ActiveChain) {
+    // D3：文件已恢复而对话未截断 = 半程状态。用撤销点捕获的 pre-undo 整树
+    // 反向恢复文件（回滚的回滚），把工作区放回命令开始前的样子再抛错。
+    if (filesRestored && undoPoint?.preRewindTreeHash) {
+      try {
+        await record.app.runtime.restoreWorkspaceTreeToHash(undoPoint.preRewindTreeHash);
+      } catch (rollbackError) {
+        host.logger?.warn?.("rewind file rollback after failed cut also failed", {
+          message: rollbackError instanceof Error ? rollbackError.message : String(rollbackError),
+          sessionId: record.app.sessionId,
+        });
+      }
+    }
     throw new Error(`conversation rewind unavailable for ${targetMessageId}: ${result.strategy}`);
   }
   // zcode-pro: Phase 3 —— 落盘撤销点（失败只降级 redo，不影响本次 rewind）。

@@ -421,6 +421,8 @@ export const commandResultSchema = z.discriminatedUnion("type", [
     type: z.literal("unrewindConversation"),
     restoredMessageCount: z.number().int().nonnegative(),
     filesRestored: z.number().int().nonnegative(),
+    // zcode-pro D1：redo 后 journal 剩余条目数；>0 时 UI 横幅继续提供重做入口。
+    entriesRemaining: z.number().int().nonnegative().optional(),
   }),
   z.object({
     type: z.literal("editUserQuery"),

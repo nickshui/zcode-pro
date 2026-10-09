@@ -645,6 +645,8 @@ export interface AgentRuntime {
     targetMessageId: MessageId;
     traceContext?: TraceContext;
   }): Promise<TurnWorkspaceSnapshotRestoreResult>;
+  // zcode-pro: message-rewind D3 —— 把工作区整树恢复到任意 tree hash（失败补偿/redo 用）。
+  restoreWorkspaceTreeToHash(treeHash: string): Promise<TurnWorkspaceSnapshotRestoreResult>;
   // zcode-pro: message-rewind Phase 3 —— rewind 的撤销/重做（Kilo unrevert 语义）。
   // capture/commit 环绕一次 rewind；undo = redo；clear 在每个新 prompt 开始时作废窗口。
   captureRewindUndoPoint(): Promise<RewindUndoPoint | null>;

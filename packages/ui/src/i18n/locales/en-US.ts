@@ -4577,6 +4577,7 @@ const enUS: Record<string, string> = {
   "chat.rewind.banner.filesRestored": "Workspace files were restored to before that turn",
   "chat.rewind.banner.filesKept": "Workspace files were left untouched",
   "chat.rewind.banner.hint": "You can redo these changes until you send a new message; the original prompt is back in the composer.",
+  "chat.rewind.banner.redone": "Redone · {count} more redo available",
   "chat.rewind.redoRejected": "Redo unavailable ({reason})",
   "chat.rewind.redoFailed": "Failed to send redo, please retry",
   "chat.message.restore": "Restore",

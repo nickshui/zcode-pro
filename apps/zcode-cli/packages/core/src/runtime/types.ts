@@ -653,6 +653,8 @@ export interface ConversationRewindRestoreResult {
   filesRestored?: number;
   /** 被撤销的那次 rewind 的目标消息。 */
   targetMessageId?: MessageId;
+  /** 弹栈后 undo journal 剩余条目数（UI 连续 redo 的横幅依据）。 */
+  entriesRemaining?: number;
 }
 
 export interface WorkspaceForkResult {

@@ -62,6 +62,25 @@ core 内的 checkpoint 后端，在工具批次边界做全仓快照，与现有
   被撤销的原提问回填输入框（"打回最初发送状态"）
 - e2e 断言：redo 后 DONE2 回归 + notes.txt 恢复 pre-undo 状态 + 新消息后 redo 被拒
 
+### 缺陷修复（2026-10-10 审计后，均通过多级 undo/redo 回归 e2e）
+
+用户实测审计发现三个跨轮次缺陷，已修复：
+
+- **D1 多级重做断裂**：连续撤销后只能重做一次。根因有二——journal 代数守卫用严格
+  相等（redo 每次 +1 让更深的栈目永远 stale，放宽为 >=，LIFO 弹栈本身保序）；
+  且横幅在首次重做成功后被关闭（GUI 唯一重做入口消失，现在 journal 未空时切换为
+  "已重做 · 还可重做 N 步"模式，ACK 新增 entriesRemaining 支撑）。
+- **D2 排队轮次无快照**：快照/窗口挂钩只在 executeTurnCommand 主路径，queue drain
+  路径（steering.ts）漏挂——排队消息的轮次点"回滚对话和文件"会
+  snapshot_unavailable 硬失败（现与非 git 工作区一并降级为仅对话回滚），
+  且 drain 后 redo 窗口未作废存在时间线合并风险（已补挂钩）。
+- **D3 部分失败无补偿**：文件已恢复而对话切割失败时留下半程状态；现用撤销点捕获
+  的 pre-undo 整树反向恢复文件（回滚的回滚）后再抛错。
+
+回归 e2e（scripts/e2e-rewind.mjs 重写为多级场景）：连撤两刀（turn2→turn1，文件
+v1v2→v1→删除）→ 连重做两刀（全部消息+文件精确回归，栈计数 1→0）→ 新消息后
+窗口作废。git/非 git/preserve 三种工作区形态全通过。
+
 ### Phase 4 —— 回流上游（可选）
 
 每个 Phase 保持独立 PR 粒度，向 `zai-org/ZCode` 提交。核心论点：core 原语

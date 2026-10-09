@@ -58,6 +58,7 @@ async function unrewindConversation(
   });
   return {
     type: "unrewindConversation",
+    entriesRemaining: result.entriesRemaining ?? 0,
     filesRestored: result.filesRestored ?? 0,
     restoredMessageCount: result.restoredMessageCount ?? 0,
   };

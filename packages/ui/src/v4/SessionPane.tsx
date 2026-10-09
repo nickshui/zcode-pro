@@ -2165,6 +2165,8 @@ export function SessionPane({
     baselineMaxRowId: number;
     filesMode: boolean;
     messageCount: number;
+    /** >0 = "已重做"模式：横幅继续提供重做入口（连续 redo，D1）。 */
+    redoableCount?: number;
   } | null>(null);
   // 新 user 消息出现即作废重做窗口（与 CLI 侧 clearRewindUndoJournal 同语义）。
   useEffect(() => {
@@ -2219,7 +2221,12 @@ export function SessionPane({
           1,
           window.filter((row) => row.rowId >= (undoneRow?.rowId ?? 0)).length,
         );
-        setRewindBanner({ baselineMaxRowId, filesMode: workspaceMode === "rewind", messageCount });
+        setRewindBanner({
+          baselineMaxRowId,
+          filesMode: workspaceMode === "rewind",
+          messageCount,
+          redoableCount: 0,
+        });
       });
     },
     [dispatchCommand, sessionId],
@@ -3115,7 +3122,21 @@ export function SessionPane({
         );
         return;
       }
-      setRewindBanner(null);
+      // D1 修复：redo 成功不直接收起横幅——journal 还有剩余撤销点时切换到
+      // "已重做 · 还可重做 N 步"模式（连续 redo 的唯一 UI 入口），栈空才收起。
+      const remaining =
+        ack.result?.type === "unrewindConversation" ? (ack.result.entriesRemaining ?? 0) : 0;
+      if (remaining > 0) {
+        const window = snapshotRef.current?.rows.window ?? [];
+        setRewindBanner({
+          baselineMaxRowId: window.reduce((max, row) => Math.max(max, row.rowId), 0),
+          filesMode: false,
+          messageCount: 0,
+          redoableCount: remaining,
+        });
+      } else {
+        setRewindBanner(null);
+      }
     })().catch((error) => {
       logger.warn("[v4-pane] redo 发送失败", error);
       toast(intl.formatMessage({ id: "chat.rewind.redoFailed" }));
@@ -4826,16 +4847,23 @@ export function SessionPane({
           >
             <Undo2Icon className="size-4 shrink-0 text-[var(--color-foreground-subtlest)]" />
             <span className="font-medium">
-              {intl.formatMessage(
-                { id: "chat.rewind.banner.title" },
-                { count: rewindBanner.messageCount },
-              )}
+              {rewindBanner.redoableCount
+                ? intl.formatMessage(
+                    { id: "chat.rewind.banner.redone" },
+                    { count: rewindBanner.redoableCount },
+                  )
+                : intl.formatMessage(
+                    { id: "chat.rewind.banner.title" },
+                    { count: rewindBanner.messageCount },
+                  )}
             </span>
-            <span className="text-ui-sm text-[var(--color-foreground-subtlest)]">
-              {rewindBanner.filesMode
-                ? intl.formatMessage({ id: "chat.rewind.banner.filesRestored" })
-                : intl.formatMessage({ id: "chat.rewind.banner.filesKept" })}
-            </span>
+            {rewindBanner.redoableCount ? null : (
+              <span className="text-ui-sm text-[var(--color-foreground-subtlest)]">
+                {rewindBanner.filesMode
+                  ? intl.formatMessage({ id: "chat.rewind.banner.filesRestored" })
+                  : intl.formatMessage({ id: "chat.rewind.banner.filesKept" })}
+              </span>
+            )}
             <button
               type="button"
               onClick={handleUnrewindConversation}

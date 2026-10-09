@@ -6,7 +6,15 @@ import { randomUUID } from "node:crypto";
 import { appendFileSync, readFileSync } from "node:fs";
 
 const WS = process.argv[2];
-const MODE = process.env.E2E_MODE === "preserve" ? "preserve" : "rewind";
+let MODE = process.env.E2E_MODE === "preserve" ? "preserve" : "rewind";
+// 非 git 工作区没有整树快照（agent 会降级为仅对话回滚，D2），文件断言跳过。
+try {
+  const { execSync } = await import("node:child_process");
+  execSync("git rev-parse --is-inside-work-tree", { cwd: WS, stdio: "ignore" });
+} catch {
+  console.log("[e2e] 非 git 工作区：rewind 模式将降级为 preserve，跳过文件断言");
+  MODE = "preserve";
+}
 const CLI = new URL("../apps/zcode-cli/packages/cli/dist/zcode.cjs", import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1");
 const log = (...a) => console.log("[e2e]", ...a);
 
@@ -168,63 +176,87 @@ try {
   const first = userRows[0];
   log("对照行(第1条) actions=", JSON.stringify(first.actions));
 
-  // 5. 发 rewindConversation（rewind 模式：对话 + 工作区整树恢复到 turn2 开始前）
+  // 5. 连撤两刀：先回滚到第 2 条 user 消息，再回滚到第 1 条（D1 多级场景）
+  const firstRowRef = userRows[0];
   const rev2 = await currentRevision();
-  const rewind = await request("v4/command", envelope("rewindConversation", { target: { rowId: target.rowId, entityId: target.entityId }, workspaceMode: MODE }, { baseRevision: rev2, baseLogEpoch: logEpoch }));
-  log("rewind ack:", JSON.stringify(rewind));
-  if (rewind.status !== "accepted") throw new Error("rewindConversation 未 accepted: " + JSON.stringify(rewind));
-  await sleep(2000);
-
-  // 6. 断言 row.removed 截断了 turn2
-  removedEvents = removedEvents; // 已在 applyFrame 累积
-  log("row.removed 事件:", JSON.stringify(removedEvents));
-  if (!removedEvents.some((d) => d.fromRowId !== undefined && d.fromRowId >= target.rowId - 5)) {
-    // 宽松断言：发生了任意 row.removed 且范围覆盖目标行
-    if (removedEvents.length === 0) throw new Error("未观察到 row.removed（时间线未截断）");
-  }
-  const visibleUser = [...rows.values()].filter((r) => r.kind === "userInput" && r.origin === "realUser" && r.rowId < (removedEvents[0]?.fromRowId ?? Infinity));
-  log("截断后仍可见的 realUser 行数:", visibleUser.length);
-
-  // 7. rewind 语义：bash 追加的 v2 必须被整树恢复撤销，notes.txt 回到 v1
+  const rewind1 = await request("v4/command", envelope("rewindConversation", { target: { rowId: target.rowId, entityId: target.entityId }, workspaceMode: MODE }, { baseRevision: rev2, baseLogEpoch: logEpoch }));
+  log("rewind#1 ack:", JSON.stringify({ status: rewind1.status, reason: rewind1.reasonCode }));
+  if (rewind1.status !== "accepted") throw new Error("rewind#1 未 accepted: " + JSON.stringify(rewind1));
+  await sleep(1500);
   if (MODE === "rewind") {
-    const after = readFileSync(WS + "/notes.txt", "utf8");
-    if (after.trim() !== "v1") throw new Error("rewind 模式下 bash 副作用未回滚: " + JSON.stringify(after));
-    log("rewind(文件) 校验通过：bash 副作用已回滚，notes.txt =", JSON.stringify(after));
+    const f1 = readFileSync(WS + "/notes.txt", "utf8");
+    if (f1.trim() !== "v1") throw new Error("rewind#1 后文件应回到 v1: " + JSON.stringify(f1));
+    log("rewind#1(文件) ✓ notes.txt =", JSON.stringify(f1));
+  }
+  let visible = [...rows.values()].filter((r) => r.kind === "userInput" && r.origin === "realUser").length;
+  if (visible !== 1) throw new Error(`rewind#1 后应剩 1 条 realUser 行，实际 ${visible}`);
+
+  const rev2b = await currentRevision();
+  const rewind2 = await request("v4/command", envelope("rewindConversation", { target: { rowId: firstRowRef.rowId, entityId: firstRowRef.entityId }, workspaceMode: MODE }, { baseRevision: rev2b, baseLogEpoch: logEpoch }));
+  log("rewind#2 ack:", JSON.stringify({ status: rewind2.status, reason: rewind2.reasonCode }));
+  if (rewind2.status !== "accepted") throw new Error("rewind#2 未 accepted: " + JSON.stringify(rewind2));
+  await sleep(1500);
+  visible = [...rows.values()].filter((r) => r.kind === "userInput" && r.origin === "realUser").length;
+  if (visible !== 0) throw new Error(`rewind#2 后应剩 0 条 realUser 行，实际 ${visible}`);
+  if (MODE === "rewind") {
+    let gone = false;
+    try { readFileSync(WS + "/notes.txt"); } catch { gone = true; }
+    if (!gone) throw new Error("rewind#2 后 notes.txt 应被删除（回到 turn1 开始前）");
+    log("rewind#2(文件) ✓ notes.txt 已回到 turn1 开始前（不存在）");
   }
 
-  // 8. redo：撤销这次撤销——被截断的消息分支与 bash 写入的文件都要完整回来
+  // 6. 连重做两刀（D1 回归测试：第二刀此前会被 stale_undo_entry 拒绝）
   const rev3 = await currentRevision();
-  const redo = await request("v4/command", envelope("unrewindConversation", {}, { baseRevision: rev3 }));
-  log("redo ack:", JSON.stringify(redo));
-  if (redo.status !== "accepted") throw new Error("unrewindConversation 未 accepted: " + JSON.stringify(redo));
-  if ((redo.result?.restoredMessageCount ?? 0) < 1) throw new Error("redo 未报告恢复消息数");
-  // 等投影 rehydrate 的新快照到达
-  const redoT0 = Date.now();
-  while (Date.now() - redoT0 < 20000) {
-    const done2 = [...rows.values()].some((r) => r.kind === "assistantText" && r.text.includes("DONE2"));
-    if (done2) break;
-    await sleep(1000);
+  const redo1 = await request("v4/command", envelope("unrewindConversation", {}, { baseRevision: rev3 }));
+  log("redo#1 ack:", JSON.stringify(redo1.status === "accepted" ? { status: redo1.status, result: redo1.result } : redo1));
+  if (redo1.status !== "accepted") throw new Error("redo#1 未 accepted: " + JSON.stringify(redo1));
+  {
+    const t0 = Date.now();
+    while (Date.now() - t0 < 20000) {
+      if ([...rows.values()].some((r) => r.kind === "assistantText" && r.text.includes("DONE1"))) break;
+      await sleep(1000);
+    }
+    visible = [...rows.values()].filter((r) => r.kind === "userInput" && r.origin === "realUser").length;
+    if (visible !== 1) throw new Error(`redo#1 后应恢复到 1 条 realUser 行，实际 ${visible}`);
+    if ((redo1.result?.entriesRemaining ?? 0) !== 1) throw new Error("redo#1 后 entriesRemaining 应为 1: " + JSON.stringify(redo1.result));
+    if (MODE === "rewind") {
+      const f = readFileSync(WS + "/notes.txt", "utf8");
+      if (f.trim() !== "v1") throw new Error("redo#1 后文件应回到 v1: " + JSON.stringify(f));
+    }
+    log("redo#1 ✓（第一轮回归，栈剩 1）");
   }
-  const restoredTexts = [...rows.values()].filter((r) => r.kind === "assistantText" && r.state === "complete").map((r) => r.text);
-  log("redo 后 assistant 完成段:", JSON.stringify(restoredTexts));
-  if (!restoredTexts.some((t) => t.includes("DONE2"))) throw new Error("redo 后 turn2 消息未回归（投影未重建）");
-  if (MODE === "rewind") {
-    const redoneFile = readFileSync(WS + "/notes.txt", "utf8");
-    if (!redoneFile.includes("v2")) throw new Error("redo 后文件未恢复到 pre-undo 状态: " + JSON.stringify(redoneFile));
-    log("redo(文件) 校验通过：notes.txt =", JSON.stringify(redoneFile));
+  const rev4 = await currentRevision();
+  const redo2 = await request("v4/command", envelope("unrewindConversation", {}, { baseRevision: rev4 }));
+  log("redo#2 ack:", JSON.stringify(redo2.status === "accepted" ? { status: redo2.status, result: redo2.result } : redo2));
+  if (redo2.status !== "accepted") throw new Error("redo#2 未 accepted（D1 回归失败！）: " + JSON.stringify(redo2));
+  {
+    const t0 = Date.now();
+    while (Date.now() - t0 < 20000) {
+      if ([...rows.values()].some((r) => r.kind === "assistantText" && r.text.includes("DONE2"))) break;
+      await sleep(1000);
+    }
+    const texts = [...rows.values()].filter((r) => r.kind === "assistantText" && r.state === "complete").map((r) => r.text);
+    if (!texts.some((t) => t.includes("DONE1")) || !texts.some((t) => t.includes("DONE2"))) throw new Error("redo#2 后两轮未全部回归: " + JSON.stringify(texts));
+    if ((redo2.result?.entriesRemaining ?? 0) !== 0) throw new Error("redo#2 后 entriesRemaining 应为 0");
+    if (MODE === "rewind") {
+      const f = readFileSync(WS + "/notes.txt", "utf8");
+      if (!f.includes("v2")) throw new Error("redo#2 后文件应回到 v1v2: " + JSON.stringify(f));
+      log("redo#2(文件) ✓ notes.txt =", JSON.stringify(f));
+    }
+    log("redo#2 ✓（两轮全部回归，栈空）—— D1 多级重做回归通过");
   }
 
-  // 9. redo 窗口语义：发新消息后 redo 必须被拒绝
-  const rev4 = await currentRevision();
-  const send3 = await request("v4/command", envelope("sendText", { text: "Reply with exactly: ALIVE" }, { baseRevision: rev4 }));
+  // 7. redo 窗口语义：发新消息后 redo 必须被拒绝
+  const rev5 = await currentRevision();
+  const send3 = await request("v4/command", envelope("sendText", { text: "Reply with exactly: ALIVE" }, { baseRevision: rev5 }));
   if (send3.status !== "accepted") throw new Error("redo 后 sendText 未 accepted: " + JSON.stringify(send3));
   await sleep(1500);
-  const rev5 = await currentRevision();
-  const redo2 = await request("v4/command", envelope("unrewindConversation", {}, { baseRevision: rev5 }));
-  log("新消息后的 redo ack:", JSON.stringify({ status: redo2.status, reasonCode: redo2.reasonCode }));
-  if (redo2.status === "accepted") throw new Error("新消息后 redo 仍被接受（窗口未作废）");
+  const rev6 = await currentRevision();
+  const redo3 = await request("v4/command", envelope("unrewindConversation", {}, { baseRevision: rev6 }));
+  log("新消息后的 redo ack:", JSON.stringify({ status: redo3.status, reasonCode: redo3.reasonCode }));
+  if (redo3.status === "accepted") throw new Error("新消息后 redo 仍被接受（窗口未作废）");
 
-  log("=== E2E 全部通过（undo + redo）===");
+  log("=== E2E 全部通过（多级 undo→redo 回归）===");
   proc.kill();
   process.exit(0);
 } catch (e) {

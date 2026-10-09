@@ -161,8 +161,10 @@ export async function undoConversationRewind(
   }
   const session = await this.sessionStore.getSession(this.sessionId);
   const currentGeneration = session?.revert?.branchGeneration ?? 0;
-  if (currentGeneration !== entry.postRewindBranchGeneration) {
-    // 撤销点之后又发生过 rewind / redo：栈不匹配，拒绝而不是错恢复。
+  // D1 修复：代数单调递增（rewind/redo 各 +1），严格相等会在"连续 redo"时把更深的
+  // 栈目误判 stale。弹栈严格 LIFO（只有 undo 压、redo 弹），代数 >= 记录值即安全；
+  // 小于记录值只可能来自异常路径（外部改写 revert），维持拒绝。
+  if (currentGeneration < entry.postRewindBranchGeneration) {
     return { restored: false, reason: "stale_undo_entry" };
   }
 
@@ -227,9 +229,10 @@ export async function undoConversationRewind(
   );
   await this.appendEvent(event, options.traceContext);
 
-  // 5) 弹出撤销点并落盘。
+  // 5) 弹出撤销点并落盘；剩余栈深回传给 UI（连续 redo 的横幅依据）。
   entries.pop();
   await writeJournal.call(this, entries);
+  const entriesRemaining = entries.length;
 
   this.logger?.info?.("zcode-pro rewind redo applied", {
     ...traceContextToLogContext(options.traceContext),
@@ -241,6 +244,7 @@ export async function undoConversationRewind(
   });
 
   return {
+    entriesRemaining,
     filesRestored: filesRestoredCount,
     restored: true,
     restoredMessageCount,

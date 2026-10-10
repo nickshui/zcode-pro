@@ -1,3 +1,4 @@
+/* oxlint-disable max-lines -- zcode-pro: rewindConversation/unrewindConversation 命令与上游 v3.15.1 新命令并存使其略过 400 行。 */
 import { createSessionRequestedConfigSchema } from "./create-session-config.js";
 import { localTtftContextSchema, localTtftClockSchema } from "../localTtft.js";
 import { conversationQuotesSchema } from "../conversationSelection.js";

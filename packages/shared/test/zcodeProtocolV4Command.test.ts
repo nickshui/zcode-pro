@@ -657,6 +657,9 @@ describe("zcode-protocol-v4 command", () => {
         "reorderQueueItem",
         "resumeGoal",
         "retryTurn",
+        // zcode-pro: message-rewind（CAS 同档命令）
+        "rewindConversation",
+        "unrewindConversation",
         "sendQueuedNow",
         "setAssistantFeedback",
         "setAutoDrain",

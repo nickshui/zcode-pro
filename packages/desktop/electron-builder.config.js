@@ -853,7 +853,9 @@ export default {
   },
   win: {
     target: ["nsis"],
-    artifactName: buildDesktopArtifactName("win"),
+    // zcode-pro: 安装包文件名用 Zcode-Pro 前缀与官方产物区分，避免下载者混淆；
+    // 仅文件名不同，productName/appId 等安装身份保持不变。
+    artifactName: `Zcode-Pro-\${version}-win-\${arch}${desktopArtifactEnvSuffix}.\${ext}`,
     signExts: [".node", ".dll"],
     // Bugfix: Windows CI 之前完全依赖 electron-builder 内置 signtool.exe，
     // 一旦 runner 的证书链路要求改走 vsigntool，打包阶段就会在内置签名环节卡死。

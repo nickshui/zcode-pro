@@ -54,7 +54,9 @@ async function main() {
   }
 
   const distDir = resolve(repoRoot, "packages", "desktop", "dist");
-  const expected = `ZCode-${version}-win-x64.exe`;
+  // 文件名带 Zcode-Pro 前缀（electron-builder.config.js win.artifactName 覆写），
+  // 与官方产物区分；安装身份不变。
+  const expected = `Zcode-Pro-${version}-win-x64.exe`;
   const candidates = existsSync(distDir)
     ? readdirSync(distDir).filter((name) => name.endsWith(".exe"))
     : [];

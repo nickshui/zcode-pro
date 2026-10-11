@@ -73,12 +73,24 @@ async function main() {
   runCommand("git", ["tag", "-f", tag], { cwd: repoRoot });
   runCommand("git", ["push", "-f", "origin", tag], { cwd: repoRoot });
 
-  // Draft Release：人工在网页核对后再 Publish，异常产物不会直接暴露给下载者。
+  // -R 必须显式指定：本地存在 upstream 远程时 gh 会把仓库解析到 zai-org/ZCode，
+  // Release 会建到官方仓库去（或因无权限失败）。
   console.log(`[release] 创建 Draft Release ${tag} 并上传安装包…`);
   runCommand(
     "gh",
-    ["release", "create", tag, exePath, "--draft", "--generate-notes", "-t", `Zcode-Pro ${tag}`],
-    { cwd: repoRoot, shell: true },
+    [
+      "release",
+      "create",
+      "-R",
+      "nickshui/zcode-pro",
+      tag,
+      exePath,
+      "--draft",
+      "--generate-notes",
+      "-t",
+      `Zcode-Pro ${tag}`,
+    ],
+    { cwd: repoRoot },
   );
   console.log(`[release] 完成：https://github.com/nickshui/zcode-pro/releases（Draft 待发布）`);
 }

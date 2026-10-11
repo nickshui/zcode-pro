@@ -14,3 +14,7 @@ third-party/runtime/*.txt -text -whitespace
 docs/knip/docs/LICENSE -text -whitespace
 docs/knip/docs/licenses/** -text -whitespace
 third-party/inventory.json linguist-generated=true
+
+# zcode-pro: vendored Gen-UI 资产按字节哈希校验（manifest.json sha256），
+# 禁止任何换行符转换，否则 Windows autocrlf 检出后构建必失败
+apps/zcode-cli/packages/visualize-plugin/skills/visualize/assets/** -text

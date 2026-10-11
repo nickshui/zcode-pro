@@ -46,13 +46,20 @@ pnpm --dir packages/desktop dev:runtime
 
 ```bash
 pnpm bootstrap                                   # 首次：安装依赖 + 准备桌面运行时资产
-ZCODE_ENV=production pnpm --dir packages/desktop build
-# 产物：packages/desktop/dist/ZCode-<version>-win-x64.exe（交互式 NSIS 安装器）
+ZCODE_ENV=production pnpm --dir packages/desktop bundle win x64
+# 产物：packages/desktop/dist/ZCode-<version>-win-x64.exe（交互式 NSIS 安装器，约 147 MiB）
+# bundle 一条命令自带 prepare + 编译 + electron-builder 打包 + 运行时校验 + 体积审计
 ```
 
 **`ZCODE_ENV=production` 不能省**：不设置时构建链默认按 test 环境处理，
 产物会落成 "ZCode Preview" 身份并指向测试后端（见
 `packages/desktop/scripts/desktop-product-identity.mjs` 与 `scripts/builtin-provider-config.mjs`）。
+
+**Windows 符号链接特权**：electron-builder 解压 winCodeSign 缓存包时，包内 darwin
+目录的符号链接在非管理员、未开开发者模式的账户下无法创建，打包会在
+"Cannot create symbolic link" 处失败。两种解法：开 Windows 开发者模式
+（设置 → 系统 → 开发者选项），或把 `node_modules/7zip-bin/win/x64/7za.exe`
+替换为对"仅符号链接失败"自愈的透传包装器（`pnpm install` 后需重做）。
 
 也可以不改身份、直接复用现有生产身份；两种方式的差异见下节。
 

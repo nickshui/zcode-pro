@@ -45,7 +45,9 @@ async function main() {
   if (!skipBuild) {
     console.log(`[release] 构建安装包（version=${version}）…`);
     // ZCODE_ENV=production 不能省：缺省会落成 ZCode Preview 身份 + 测试后端配置。
-    runCommand("pnpm", ["--dir", "packages/desktop", "build"], {
+    // bundle 一条命令自带 prepare:runtime-assets + 编译 + electron-builder 打包 + 三道质检，
+    // 产物直接落 packages/desktop/dist/（build 只到编译层，不产安装器）。
+    runCommand("pnpm", ["--dir", "packages/desktop", "bundle", "win", "x64"], {
       cwd: repoRoot,
       env: { ...process.env, ZCODE_ENV: "production" },
     });

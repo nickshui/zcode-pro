@@ -42,6 +42,58 @@ pnpm --dir packages/desktop dev:runtime
 
 运行自建的桌面版后，用你的 Z.ai Coding Plan API Key 登录即可连接官方模型服务。
 
+## 构建可安装的桌面客户端
+
+```bash
+pnpm bootstrap                                   # 首次：安装依赖 + 准备桌面运行时资产
+ZCODE_ENV=production pnpm --dir packages/desktop build
+# 产物：packages/desktop/dist/ZCode-<version>-win-x64.exe（交互式 NSIS 安装器）
+```
+
+**`ZCODE_ENV=production` 不能省**：不设置时构建链默认按 test 环境处理，
+产物会落成 "ZCode Preview" 身份并指向测试后端（见
+`packages/desktop/scripts/desktop-product-identity.mjs` 与 `scripts/builtin-provider-config.mjs`）。
+
+也可以不改身份、直接复用现有生产身份；两种方式的差异见下节。
+
+### 本地构建并发布到 GitHub Releases
+
+本地一条命令完成"构建 → 打 tag → 上传安装包到 Draft Release"：
+
+```bash
+pnpm release:desktop
+```
+
+前置（一次性）：安装 GitHub 官方 CLI 并登录——Release 上传走 HTTP API，
+git 的 SSH key 不覆盖这步，必须 `gh auth login`：
+
+```bash
+winget install --id GitHub.cli
+gh auth login        # 浏览器授权
+```
+
+说明：安装包放 **Release 附件**而不是提交进 git 仓库——GitHub 硬性拒绝 >100MB 的
+普通文件，Electron 安装包必然超限；Release 附件不受限且不膨胀 clone 体积。
+产物为 Draft Release，网页核对后再点 Publish。常用变体：
+
+```bash
+pnpm release:desktop -- --skip-build              # 只上传 dist 里现成的 exe
+pnpm release:desktop -- --tag pro-v3.15.1-beta.1  # 自定义 tag（默认 pro-v<version>）
+```
+
+### 与官方版 ZCode 的共存与数据安全（Windows 实测结论）
+
+安装包默认**按用户安装**到 `%LOCALAPPDATA%\Programs\zcode`，与官方版的
+`C:\Program Files\ZCode` 互不写对方目录，"应用与功能"中呈现为两条独立记录。数据层面：
+
+- **不删除、不重写官方数据**：登录态、会话历史、设置存放在共享的
+  `%APPDATA%\ZCode` 与 `~/.zcode`，增强版只读取与增量追加；装完即用，无需重新登录。
+- **随时可回退**：卸载增强版或重装官方版即可还原官方客户端，卸载过程不清理上述数据目录。
+- 两点已知行为（非数据损坏，但需要知晓）：
+  1. 同名身份共用单实例锁，增强版与官方版**不能同时运行**；
+  2. 打包版连接官方更新线，官方发布更新版本后会被自动更新覆盖回官方构建，
+     届时需重新打包安装增强版（或关注本仓库的自动发布流程）。
+
 ## 增强能力路线
 
 见 [docs/ROADMAP.md](docs/ROADMAP.md)。当前主线：

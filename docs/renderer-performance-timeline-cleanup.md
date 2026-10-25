@@ -3,7 +3,7 @@
 ## 背景
 
 2026-05-18 分析 `Heap-20260518T115447.heapsnapshot` 时，renderer 页面
-`http://localhost:5174` 的 heap 里有约 10,605,795 个 `native:PerformanceMeasure`，
+`http://localhost:8005` 的 heap 里有约 10,605,795 个 `native:PerformanceMeasure`，
 自身大小约 1.2 GB。保留链路来自 `window.performance` 的原生 Performance timeline，
 不是业务数组、React Fiber 或监控 SDK span 缓存。
 

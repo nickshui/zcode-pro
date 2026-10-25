@@ -57,7 +57,7 @@ class MockUtilityProcess extends EventEmitter {
 describe("desktopHostProcess loadWindow", () => {
   it("生产包忽略继承的开发服务器地址并加载内置页面", async () => {
     electronMock.isPackaged = true;
-    vi.stubEnv("ELECTRON_RENDERER_URL", "http://localhost:5174");
+    vi.stubEnv("ELECTRON_RENDERER_URL", "http://localhost:8005");
     const window = {
       loadFile: vi.fn().mockResolvedValue(undefined),
       loadURL: vi.fn().mockResolvedValue(undefined),

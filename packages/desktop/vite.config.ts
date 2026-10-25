@@ -199,7 +199,9 @@ export default defineConfig(({ mode }) => {
       },
       dedupe: ["react", "react-dom", "lucide-react"],
     },
-    server: { port: 5174, strictPort: true },
+    // zcode-pro: 开发端口从 5174 迁到 8005，避开本机常见 vite/前端项目默认段
+    //（5173/5174 被其它项目占用时 strictPort 会直接失败）。
+    server: { port: 8005, strictPort: true },
     define: {
       __ZCODE_VERSION__: JSON.stringify(buildMetadata.appVersion),
       __ZCODE_COMMIT__: JSON.stringify(buildMetadata.buildCommitId),

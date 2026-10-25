@@ -86,7 +86,8 @@ async function waitForReady() {
   // Wait for Vite dev server
   // Vite 在不同本机 DNS/IPv6 配置下可能只监听 localhost/::1 或 127.0.0.1 其中之一。
   // 这里轮询多个 loopback 地址，避免 dev 脚本和 Vite 实际监听地址不一致导致 Electron 永远不启动。
-  const viteUrls = ["http://localhost:5174", "http://127.0.0.1:5174", "http://[::1]:5174"];
+  // zcode-pro: 8005 与 vite.config.ts 的 server.port 保持一致（原 5174 易与其它项目冲突）。
+  const viteUrls = ["http://localhost:8005", "http://127.0.0.1:8005", "http://[::1]:8005"];
   let lastViteWaitLogAt = 0;
   while (true) {
     const failures = [];

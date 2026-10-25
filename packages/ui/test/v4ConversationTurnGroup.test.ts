@@ -481,8 +481,7 @@ describe("ConversationTurnGroup Hook footer", () => {
     ({ compactForRemoteControl, highspeed, hasAssistantText }) => {
       const [unit] = buildConversationTurnRenderUnits([
         turnHeader({ state: hasAssistantText ? "completedSuccess" : "completedInterrupted" }),
-        userInputRow(2, {
-          ...(highspeed
+        userInputRow(2, (highspeed
             ? {
                 highspeed: {
                   schemaVersion: 1,
@@ -494,8 +493,7 @@ describe("ConversationTurnGroup Hook footer", () => {
                   expiresAt: 10_000,
                 },
               }
-            : {}),
-        }),
+            : {})),
         hookInvocationRow(3),
         ...(hasAssistantText ? [assistantTextRow(4)] : []),
         forkNoticeTimelineRow(5),

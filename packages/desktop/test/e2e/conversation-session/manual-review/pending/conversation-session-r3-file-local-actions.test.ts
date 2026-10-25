@@ -13,8 +13,6 @@ import {
 } from "@zcode/shared/test-ids";
 import {
   clearAppData,
-  clickTestIdByDom,
-  hoverTestIdByWebDriver,
   waitForTestIdByDom,
 } from "../../../helpers/desktop-app.js";
 import {

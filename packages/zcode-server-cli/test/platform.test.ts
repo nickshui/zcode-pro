@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 import { join } from "node:path";
 import {
   createDaemonServiceDescriptor,
-  createServiceDescriptor,
   serviceDescriptorPath,
 } from "../src/platform/serviceManager.js";
 import { resolveServerLayout, stablePathId } from "../src/runtime/paths.js";

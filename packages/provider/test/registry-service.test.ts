@@ -11,7 +11,6 @@ import {
   type ProviderSource,
 } from "../src/index.js";
 import {
-  createAccountProviderConfig,
   createApiKeyProviderConfig,
 } from "./provider-config-fixtures.js";
 

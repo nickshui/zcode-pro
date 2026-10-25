@@ -23,7 +23,6 @@ import {
 } from "../../../helpers/ssh-remote-lifecycle.js";
 import {
   readHostProcesses,
-  readRemoteTabSnapshot,
   runSSHCommand,
 } from "../../../helpers/ssh-remote-p0.js";
 import {

@@ -38,7 +38,6 @@ import { type TabStore, type TabStoreState } from "@/store/tabStore.js";
 import type { RootProps } from "@/root/types.js";
 import {
   hadPersistedPaneLayoutAtModuleLoad,
-  INITIAL_PANE_LAYOUT,
   usePaneLayoutStore,
 } from "@/v4/paneLayoutStore.js";
 import { resolveWorkbenchNewTaskTarget } from "@/conversation-workspace-target/workbenchTarget.js";

@@ -2,14 +2,13 @@ import { EventEmitter } from "node:events";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   buildRemoteWorkspaceIdentity,
-  buildServerRemoteWorkspaceIdentity,
   HostMessageTypes,
   HostResponseTypes,
   InternalChannels,
   PlatformChannels,
   type RemoteTarget,
 } from "@zcode/shared";
-import { resolveBotRemoteWorkspace } from "../src/host/botRemoteWorkspaceResolver.js";
+
 import { createRemoteWorkspaceSessionManager } from "../src/main/desktopRemoteSessions.js";
 
 const { browserWindowMock, channels } = vi.hoisted(() => {

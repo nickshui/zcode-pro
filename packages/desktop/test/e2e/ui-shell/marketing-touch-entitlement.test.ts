@@ -20,7 +20,6 @@ import {
   clickTestIdByWebDriver,
   readSettings,
   seedSettings,
-  waitForTestIdByDom,
 } from "../helpers/desktop-app.js";
 
 describe("Marketing Touch 领取后的权益与模型连接", () => {

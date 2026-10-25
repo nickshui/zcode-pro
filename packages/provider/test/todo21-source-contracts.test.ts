@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   parseAccountProviderConfigMap,
-  parsePersonalModelConfigRules,
   parsePersonalProviderConfigMap,
   parseZCodeBuiltinProviderConfigMap,
 } from "../src/index.js";

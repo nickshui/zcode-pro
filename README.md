@@ -2,7 +2,7 @@
 
 **基于 [zai-org/ZCode](https://github.com/zai-org/ZCode) 开源版增强的 AI 编程工作台**，主打一项上游暂时没有的能力：**任意消息级回滚（Kilo Code 风格的 Checkpoint / Rewind）**——在桌面客户端对话界面上，随时回到任意一条历史消息的"对话原点"，可选同时回滚该消息之后的文件改动。
 
-> 上游基线：`zai-org/ZCode` v3.15.1（tag `v3.15.1`；合并提交见 git 历史）
+> 上游基线：`zai-org/ZCode` v3.16.2（tag `v3.16.2`；合并提交见 git 历史）
 > 许可证：Apache-2.0（继承上游，含 NOTICE.md 与 THIRD-PARTY-NOTICES.md）
 
 ## 这个项目解决什么问题
